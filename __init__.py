@@ -18,88 +18,136 @@
 
 import bpy
 import numpy
+from bpy.types import AddonPreferences
+from bpy.types import Operator 
+from bpy.props import (FloatProperty, BoolProperty)
 
 bl_info = {
-    "name": "camera_clipping_assistant",
-    "description": "Assistant to set camera clipping distance",
+    "name": "Clipping Assistant",
+    "description": "Assistant to set Viewport and Camera Clipping Distance",
     "author": "Daniel Grauer",
-    "version": (1, 0, 0),
+    "version": (1, 0, 1),
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
-    "wiki_url": "https://github.com/kromar/blender_camera_clipping_assistant"
+    "wiki_url": "https://github.com/kromar/blender_clipping_assistant",
+    "tracker_url": "https://github.com/kromar/blender_clipping_assistant/issues/new",
 }
 
   
 
 def draw_button(self, context):
-    
-    AC_active = True 
+    pref = bpy.context.preferences.addons[__package__.split(".")[0]].preferences    
     if context.region.alignment == 'RIGHT':
         layout = self.layout
         row = layout.row(align=True)
-        
-        if AC_active:
-            row.operator(operator="scene.auto_clipping", text="", icon='VIEW_CAMERA', emboss=True, depress=False)
-            AC_active = False
+        if pref.button_text:
+            row.operator(operator="scene.clipping_assistant", text="Set Clipping", icon='VIEW_CAMERA', emboss=True, depress=False)
         else:
-            row.operator(operator="scene.auto_clipping", text="", icon='OUTLINER_DATA_CAMERA', emboss=True, depress=False)
-            AC_active = True
-        
+            row.operator(operator="scene.clipping_assistant", text="", icon='VIEW_CAMERA', emboss=True, depress=False)
 
-        #bpy.ops.script.reload()
 
-def max_list_value(list):
-    i = numpy.argmax(list)
-    v = list[i]
-    return (i, v)
 
-def min_list_value(list):
-    i = numpy.argmin(list)
-    v = list[i]
-    return (i, v)
 
-class AutoClipping_OT_run(bpy.types.Operator):
-    bl_idname = "scene.auto_clipping"
-    bl_label = "auto_clipping"
-    bl_description = "auto_clipping"
+class ClippingAssistant_OT_run(Operator):
+    bl_idname = "scene.clipping_assistant"
+    bl_label = "clipping_assistant"
+    bl_description = "Set Start and End Clipping Distance of Camera(s)"
     
     @classmethod
     def poll(cls, context):
         return context.selected_objects
 
-    def execute(self, context):
-        scale_factor = 100
+    def max_list_value(self, list):
+        i = numpy.argmax(list)
+        v = list[i]
+        return (i, v)
+
+    def min_list_value(self, list):
+        i = numpy.argmin(list)
+        v = list[i]
+        return (i, v)
+
+    def execute(self, context):        
+        pref = bpy.context.preferences.addons[__package__.split(".")[0]].preferences        
         obj = bpy.context.active_object
         # calculate selected context
         #size = sum(obj.dimensions)        
-        i, max = max_list_value(obj.dimensions)
-        i, min = min_list_value(obj.dimensions)
+        i, max = self.max_list_value(obj.dimensions)
+        i, min = self.min_list_value(obj.dimensions)
         print(obj.name , ": ", max, min)
         # adjust clipping selected context
         for area in bpy.context.screen.areas:
             if area.type == 'VIEW_3D':
                 for space in area.spaces:
                     if space.type == 'VIEW_3D':
-                        space.clip_start = min / scale_factor
-                        space.clip_end = max * scale_factor
+                        space.clip_start = min / pref.clip_start_factor
+                        space.clip_end = max * pref.clip_end_factor
                         print("start: ", space.clip_start, "\nend: ", space.clip_end)
-                        if space.camera:
+                        if space.camera and pref.camera_clipping:
                             print("camera: ", space.camera.name)
-                            bpy.data.cameras[space.camera.name].clip_start = min / scale_factor
-                            bpy.data.cameras[space.camera.name].clip_end = max * scale_factor
+                            bpy.data.cameras[space.camera.name].clip_start = min / pref.clip_start_factor
+                            bpy.data.cameras[space.camera.name].clip_end = max * pref.clip_end_factor
         
         return{'FINISHED'}
 
+class ClippingAssistantPreferences(AddonPreferences):
+    bl_idname = __package__
+
+    clip_start_factor: FloatProperty(
+        name="Clip Start Divider",
+        description="Value to calculate Clip Start, the higher the value the smaller the Clip Start Distance",
+        default=100,
+        min = 1,
+        soft_max=1000,
+        step=10,
+        precision=0,
+        subtype='FACTOR') 
+
+    clip_end_factor: FloatProperty(
+        name="Clip End Multiplier",
+        description="Value to calculate Clip End, the higher the value the bigger the Clip End Distance",
+        default=100,
+        min = 1,
+        soft_max=1000,
+        step=10,
+        precision=0,
+        subtype='FACTOR') 
+
+    camera_clipping: BoolProperty(
+        name="Apply Clipping To Active Camera",
+        description="When enabled the clipping Distance of the Active Camera is adjusted as well as the Viewport Clip Distance",
+        default=False)
+    
+    button_text: BoolProperty(
+        name="Show Button Text",
+        description="When enabled the Header Button will Show A Text",
+        default=True)
+
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = True
+        layout.prop(self, 'clip_start_factor') 
+        layout.prop(self, 'clip_end_factor') 
+        layout.prop(self, 'camera_clipping') 
+        layout.prop(self, 'button_text') 
+
+
+classes = (
+    ClippingAssistant_OT_run,
+    ClippingAssistantPreferences,
+    )
+
 def register():
-    bpy.utils.register_class(AutoClipping_OT_run)
+    
+    for c in classes:
+        bpy.utils.register_class(c)
     bpy.types.TOPBAR_HT_upper_bar.prepend(draw_button)
 
 
 def unregister():
     bpy.types.TOPBAR_HT_upper_bar.remove(draw_button)
-    bpy.utils.unregister_class(AutoClipping_OT_run)
-
+    [bpy.utils.unregister_class(c) for c in classes]
 
 if __name__ == "__main__":
     register()
