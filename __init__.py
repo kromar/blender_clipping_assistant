@@ -56,7 +56,7 @@ class ClippingAssistant_OT_run(Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.selected_objects
+        return context.active_object
 
     def max_list_value(self, list):
         i = numpy.argmax(list)
