@@ -18,15 +18,17 @@
 
 import bpy
 import numpy
+from mathutils import Vector 
 from bpy.types import AddonPreferences
 from bpy.types import Operator 
 from bpy.props import (FloatProperty, BoolProperty)
+
 
 bl_info = {
     "name": "Clipping Assistant",
     "description": "Assistant to set Viewport and Camera Clipping Distance",
     "author": "Daniel Grauer",
-    "version": (1, 0, 1),
+    "version": (1, 1, 0),
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
@@ -34,7 +36,6 @@ bl_info = {
     "tracker_url": "https://github.com/kromar/blender_clipping_assistant/issues/new",
 }
 
-  
 
 def draw_button(self, context):
     pref = bpy.context.preferences.addons[__package__.split(".")[0]].preferences    
@@ -47,8 +48,6 @@ def draw_button(self, context):
             row.operator(operator="scene.clipping_assistant", text="", icon='VIEW_CAMERA', emboss=True, depress=False)
 
 
-
-
 class ClippingAssistant_OT_run(Operator):
     bl_idname = "scene.clipping_assistant"
     bl_label = "clipping_assistant"
@@ -56,7 +55,7 @@ class ClippingAssistant_OT_run(Operator):
     
     @classmethod
     def poll(cls, context):
-        return context.active_object
+        return context.selected_objects
 
     def max_list_value(self, list):
         i = numpy.argmax(list)
@@ -67,29 +66,41 @@ class ClippingAssistant_OT_run(Operator):
         i = numpy.argmin(list)
         v = list[i]
         return (i, v)
+    
+    def distance_vec(self, point1: Vector, point2: Vector) -> float: 
+            """Calculate distance between two points.""" 
+            return (point2 - point1).length  
 
     def execute(self, context):        
-        pref = bpy.context.preferences.addons[__package__.split(".")[0]].preferences        
-        obj = bpy.context.active_object
-        # calculate selected context
-        #size = sum(obj.dimensions)        
-        i, max = self.max_list_value(obj.dimensions)
-        i, min = self.min_list_value(obj.dimensions)
-        print(obj.name , ": ", max, min)
+        pref = context.preferences.addons[__package__.split(".")[0]].preferences
+
+        objPosition = []
+        objDimension = []
+
+        for obj in context.selected_objects:
+            objPosition.append(obj.location)
+            objDimension.append(obj.dimensions)   
+                
+        objDistance = self.distance_vec(min(objPosition), max(objPosition))
+        maxClipping = objDistance + max(max(objDimension))
+        minClipping = min(min(objDimension))
+        
         # adjust clipping selected context
-        for area in bpy.context.screen.areas:
+        for area in context.screen.areas:
             if area.type == 'VIEW_3D':
                 for space in area.spaces:
                     if space.type == 'VIEW_3D':
-                        space.clip_start = min / pref.clip_start_factor
-                        space.clip_end = max * pref.clip_end_factor
-                        print("start: ", space.clip_start, "\nend: ", space.clip_end)
+                        space.clip_start = minClipping / pref.clip_start_factor
+                        space.clip_end = maxClipping * pref.clip_end_factor
+                        #print("start: ", space.clip_start, "\nend: ", space.clip_end)
                         if space.camera and pref.camera_clipping:
                             print("camera: ", space.camera.name)
-                            bpy.data.cameras[space.camera.name].clip_start = min / pref.clip_start_factor
-                            bpy.data.cameras[space.camera.name].clip_end = max * pref.clip_end_factor
+                            bpy.data.cameras[space.camera.name].clip_start = minClipping / pref.clip_start_factor
+                            bpy.data.cameras[space.camera.name].clip_end = maxClipping * pref.clip_end_factor
         
         return{'FINISHED'}
+
+
 
 class ClippingAssistantPreferences(AddonPreferences):
     bl_idname = __package__
