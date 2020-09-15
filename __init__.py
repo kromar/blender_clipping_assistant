@@ -28,7 +28,7 @@ bl_info = {
     "name": "Clipping Assistant",
     "description": "Assistant to set Viewport and Camera Clipping Distance",
     "author": "Daniel Grauer",
-    "version": (1, 1, 0),
+    "version": (1, 1, 1),
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
@@ -39,13 +39,16 @@ bl_info = {
 
 def draw_button(self, context):
     pref = bpy.context.preferences.addons[__package__.split(".")[0]].preferences    
-    if context.region.alignment == 'RIGHT':
-        layout = self.layout
-        row = layout.row(align=True)
-        if pref.button_text:
-            row.operator(operator="scene.clipping_assistant", text="Set Clipping", icon='VIEW_CAMERA', emboss=True, depress=False)
-        else:
-            row.operator(operator="scene.clipping_assistant", text="", icon='VIEW_CAMERA', emboss=True, depress=False)
+    
+    if pref.button_toggle:
+        if context.region.alignment == 'RIGHT':
+            layout = self.layout
+            row = layout.row(align=True)
+                
+            if pref.button_text:
+                row.operator(operator="scene.clipping_assistant", text="Set Clipping", icon='VIEW_CAMERA', emboss=True, depress=False)
+            else:
+                row.operator(operator="scene.clipping_assistant", text="", icon='VIEW_CAMERA', emboss=True, depress=False)
 
 
 class ClippingAssistant_OT_run(Operator):
@@ -135,13 +138,19 @@ class ClippingAssistantPreferences(AddonPreferences):
         description="When enabled the Header Button will Show A Text",
         default=True)
 
+    button_toggle: BoolProperty(
+        name="Show Button",
+        description="When enabled the Header Button will Show",
+        default=True)
+
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
+        layout.prop(self, 'button_toggle') 
+        layout.prop(self, 'button_text') 
+        layout.prop(self, 'camera_clipping') 
         layout.prop(self, 'clip_start_factor') 
         layout.prop(self, 'clip_end_factor') 
-        layout.prop(self, 'camera_clipping') 
-        layout.prop(self, 'button_text') 
 
 
 classes = (
@@ -152,7 +161,7 @@ classes = (
 def register():
     
     for c in classes:
-        bpy.utils.register_class(c)
+        bpy.utils.register_class(c)   
     bpy.types.TOPBAR_HT_upper_bar.prepend(draw_button)
 
 
