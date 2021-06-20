@@ -28,7 +28,7 @@ bl_info = {
     "name": "Clipping Assistant",
     "description": "Assistant to set Viewport and Camera Clipping Distance",
     "author": "Daniel Grauer",
-    "version": (1, 1, 2),
+    "version": (1, 1, 3),
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
@@ -89,19 +89,23 @@ class ClippingAssistant_OT_run(Operator):
         maxClipping = objDistance + max(max(objDimension))
         minClipping = self.min_list_value(objDimension)
         
-        # adjust clipping selected context
-        for area in context.screen.areas:
-            if area.type == 'VIEW_3D':
-                for space in area.spaces:
-                    if space.type == 'VIEW_3D':
-                        space.clip_start = minClipping / pref.clip_start_factor
-                        space.clip_end = maxClipping * pref.clip_end_factor
-                        #print("start: ", space.clip_start, "\nend: ", space.clip_end)
-                        if space.camera and pref.camera_clipping:
-                            print("camera: ", space.camera.name)
-                            bpy.data.cameras[space.camera.name].clip_start = minClipping / pref.clip_start_factor
-                            bpy.data.cameras[space.camera.name].clip_end = maxClipping * pref.clip_end_factor
-        
+        for workspace in bpy.data.workspaces:
+            #print("workspaces:", workspace.name)
+            for screen in workspace.screens:
+                ##print("screen: ", screen.name)
+                for area in screen.areas:
+                    if area.type == 'VIEW_3D':
+                        #print("area: ", area.type , end='\n')
+                        for space in area.spaces:
+                            if space.type == 'VIEW_3D':
+                                space.clip_start = minClipping / pref.clip_start_factor
+                                space.clip_end = maxClipping * pref.clip_end_factor
+                                #print("start: ", space.clip_start, "\nend: ", space.clip_end)
+                                if space.camera and pref.camera_clipping:
+                                    #print("camera: ", space.camera.name)
+                                    bpy.data.cameras[space.camera.name].clip_start = minClipping / pref.clip_start_factor
+                                    bpy.data.cameras[space.camera.name].clip_end = maxClipping * pref.clip_end_factor
+                
         return{'FINISHED'}
 
 
