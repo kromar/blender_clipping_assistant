@@ -28,7 +28,7 @@ bl_info = {
     "name": "Clipping Assistant",
     "description": "Assistant to set Viewport and Camera Clipping Distance",
     "author": "Daniel Grauer",
-    "version": (1, 1, 1),
+    "version": (1, 1, 2),
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
@@ -66,9 +66,10 @@ class ClippingAssistant_OT_run(Operator):
         return (i, v)
 
     def min_list_value(self, list):
-        i = numpy.argmin(list)
-        v = list[i]
-        return (i, v)
+        masked_list = numpy.ma.masked_values(list, 0)  
+        i = numpy.argmin(masked_list[0])
+        v = masked_list[0][i]
+        return v
     
     def distance_vec(self, point1: Vector, point2: Vector) -> float: 
             """Calculate distance between two points.""" 
@@ -86,7 +87,7 @@ class ClippingAssistant_OT_run(Operator):
                 
         objDistance = self.distance_vec(min(objPosition), max(objPosition))
         maxClipping = objDistance + max(max(objDimension))
-        minClipping = min(min(objDimension))
+        minClipping = self.min_list_value(objDimension)
         
         # adjust clipping selected context
         for area in context.screen.areas:
