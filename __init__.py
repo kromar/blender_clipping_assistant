@@ -24,6 +24,8 @@ from bpy.types import AddonPreferences
 from bpy.types import Operator 
 from bpy.props import (FloatProperty, BoolProperty)
 
+from bpy.app.handlers import persistent
+
 
 bl_info = {
     "name": "Clipping Assistant",
@@ -36,6 +38,8 @@ bl_info = {
     "wiki_url": "https://github.com/kromar/blender_clipping_assistant",
     "tracker_url": "https://github.com/kromar/blender_clipping_assistant/issues/new",
 }
+
+
 
 def max_list_value(list):
         i = numpy.argmax(list)
@@ -55,22 +59,43 @@ def distance_vec(point1: Vector, point2: Vector) -> float:
         return (point2 - point1).length  
 
 
+subscription_owner = object()
 # Subscribe to the context object (mesh)
-def subscribe_to_obj_loc(obj):
-    if obj.type != 'MESH':
-        return
+def subscribe_to_obj(subscription_owner):
+    """ if subscription_owner.type != 'MESH':
+        return """
 
     subscribe_to = bpy.types.LayerObjects, "active"
 
     bpy.msgbus.subscribe_rna(
         key=subscribe_to,
         # owner of msgbus subcribe (for clearing later)
-        owner=obj,
+        owner=subscription_owner,
         # Args passed to callback function (tuple)
-        args=(obj,),
+        args=(subscription_owner,),
         # Callback function for property update
-        notify=obj_callback,
+        notify=obj_callback,        
+        options={"PERSISTENT"}
     )
+    
+    if load_handler not in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.append(load_handler)
+
+
+def unsubscribe_to_obj(subscription_owner):
+    # Clear all subscribers by this owner
+    if subscription_owner is not None:
+        bpy.msgbus.clear_by_owner(subscription_owner)
+
+    # Unregister the persistent handler.
+    if load_handler in bpy.app.handlers.load_post:
+        bpy.app.handlers.load_post.remove(load_handler)
+
+
+@persistent
+def load_handler():
+    subscribe_to_obj(subscription_owner)
+
 
 
 # Callback function for location changes
@@ -79,7 +104,7 @@ def obj_callback(obj):
     objPosition = []
     objDimension = []
     
-    calc_view_matrix()
+    view_distance = calc_view_matrix()
 
     for obj in bpy.context.selected_objects:
         objPosition.append(obj.location)
@@ -87,8 +112,8 @@ def obj_callback(obj):
             
     objDistance = distance_vec(min(objPosition), max(objPosition))
     minClipping = min_list_value(objDimension) / pref.clip_start_factor
-    maxClipping = objDistance + max(max(objDimension)) * pref.clip_end_factor
-    print("min/max/dist: ", minClipping, maxClipping, objDistance, sep=" / ")
+    maxClipping = objDistance + max(max(objDimension)) * view_distance #* pref.clip_end_factor
+    print("min/max/dist: ", minClipping, maxClipping, objDistance, sep=" \n ")
 
     for workspace in bpy.data.workspaces:
         #print("workspaces:", workspace.name)
@@ -118,9 +143,11 @@ def draw_button(self, context):
             row = layout.row(align=True)
            
             if pref.button_text:
-                row.operator(operator="scene.clipping_assistant", text="Set Clipping", icon='VIEW_CAMERA', emboss=True, depress=False)
+                row.operator(operator="scene.clipping_assistant_start", text="Start", icon='VIEW_CAMERA', emboss=True, depress=False)
+                row.operator(operator="scene.clipping_assistant_end", text="End", icon='CANCEL', emboss=True, depress=False)
             else:
-                row.operator(operator="scene.clipping_assistant", text="", icon='VIEW_CAMERA', emboss=True, depress=False)
+                row.operator(operator="scene.clipping_assistant_start", text="", icon='VIEW_CAMERA', emboss=True, depress=False)
+                row.operator(operator="scene.clipping_assistant_end", text="", icon='CANCEL', emboss=True, depress=False)
 
 
 def calc_view_matrix():   
@@ -135,36 +162,30 @@ def calc_view_matrix():
                 print("view_location: ", view_3d.view_location)
                 print("view_rotation: ", view_3d.view_rotation.to_euler())
                 print("view_distance: ", view_3d.view_distance)
+                return view_3d.view_distance
                 
 
+class ClippingAssistant_OT_register(bpy.types.Operator):
+    bl_idname = "scene.clipping_assistant_start"
+    bl_label = "start"
+    bl_description = "Start and End Clipping Distance of Camera(s)"
+    bl_options = {"REGISTER", "UNDO"}
 
-class ClippingAssistant_OT_run(Operator):
-    bl_idname = "scene.clipping_assistant"
-    bl_label = "clipping_assistant"
-    bl_description = "Set Start and End Clipping Distance of Camera(s)"
-    
-    
-    """ @classmethod
-    def poll(cls, context):        
-        ob = context.object
-        return ob and ob.type == 'MESH' """
-        
-    print("TEST")
-    #subscribe_to_obj_loc(bpy.context.object)
-         
-     
-    def invoke(self, context, event):
-        print("invoke")
-        subscribe_to_obj_loc(bpy.context.object)
-        return{'FINISHED'}
-
-    """ 
     def execute(self, context):
-        print("execute")
-        subscribe_to_obj_loc(bpy.context.object)
-        return{'FINISHED'} """
-       
+        subscribe_to_obj(subscription_owner)
+        return {"FINISHED"}
 
+
+class ClippingAssistant_OT_unregister(bpy.types.Operator):
+    bl_idname = "scene.clipping_assistant_end"
+    bl_label = "end"
+    bl_options = {"REGISTER", "UNDO"}
+
+    def execute(self, context):     
+        unsubscribe_to_obj(subscription_owner)
+        return {"FINISHED"}
+
+      
 
 class ClippingAssistantPreferences(AddonPreferences):
     bl_idname = __package__
@@ -197,7 +218,7 @@ class ClippingAssistantPreferences(AddonPreferences):
     button_text: BoolProperty(
         name="Show Button Text",
         description="When enabled the Header Button will Show A Text",
-        default=True)
+        default=False)
 
     button_toggle: BoolProperty(
         name="Show Button",
@@ -215,7 +236,8 @@ class ClippingAssistantPreferences(AddonPreferences):
 
 
 classes = (
-    ClippingAssistant_OT_run,
+    ClippingAssistant_OT_register,
+    ClippingAssistant_OT_unregister,
     ClippingAssistantPreferences,
     )
 
@@ -227,6 +249,8 @@ def register():
 def unregister():
     bpy.types.TOPBAR_HT_upper_bar.remove(draw_button)
     [bpy.utils.unregister_class(c) for c in classes]
+    # Unsubscribe and remove handle
+    unsubscribe_to_obj(subscription_owner)
 
 if __name__ == "__main__":
     register()
