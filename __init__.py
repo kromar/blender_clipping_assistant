@@ -20,9 +20,8 @@ import bpy
 import numpy
 import mathutils
 from mathutils import Vector 
-from bpy.types import AddonPreferences
-from bpy.types import Operator 
-from bpy.props import (FloatProperty, BoolProperty)
+from bpy.types import AddonPreferences, Operator
+from bpy.props import FloatProperty, BoolProperty
 
 from bpy.app.handlers import persistent
 
@@ -39,7 +38,9 @@ bl_info = {
     "tracker_url": "https://github.com/kromar/blender_clipping_assistant/issues/new",
 }
 
-
+def prefs():
+    user_preferences = bpy.context.preferences
+    return user_preferences.addons[__package__].preferences 
 
 def max_list_value(list):
         i = numpy.argmax(list)
@@ -74,7 +75,7 @@ def subscribe_to_obj(subscription_owner):
         # Args passed to callback function (tuple)
         args=(subscription_owner,),
         # Callback function for property update
-        notify=obj_callback,        
+        notify=calculate_clipping,        
         options={"PERSISTENT"}
     )
     
@@ -99,22 +100,39 @@ def load_handler():
 
 
 # Callback function for location changes
-def obj_callback(obj):
-    pref = bpy.context.preferences.addons[__package__.split(".")[0]].preferences
+def calculate_clipping():
     objPosition = []
-    objDimension = []
-    
-    view_distance = calc_view_matrix()
+    objDimension = []    
 
     for obj in bpy.context.selected_objects:
+        
+        view_distance = calc_view_matrix(obj)
         objPosition.append(obj.location)
-        objDimension.append(obj.dimensions)   
-            
-    objDistance = distance_vec(min(objPosition), max(objPosition))
-    minClipping = min_list_value(objDimension) / pref.clip_start_factor
-    maxClipping = objDistance + max(max(objDimension)) * view_distance #* pref.clip_end_factor
-    print("min/max/dist: ", minClipping, maxClipping, objDistance, sep=" \n ")
+        objDimension.append(obj.dimensions)  
 
+        
+              
+    selected_objects_proximity = distance_vec(min(objPosition), max(objPosition))
+
+    minClipping = min_list_value(objDimension) / prefs().clip_start_factor
+    maxClipping = selected_objects_proximity + max(max(objDimension)) * view_distance #* pref.clip_end_factor
+    
+    # fallback if objects without dimensions are selected
+    if not minClipping:
+        minClipping = view_distance / prefs().clip_start_factor *.1
+    if not maxClipping:
+        maxClipping = view_distance * prefs().clip_end_factor
+
+    print("min: ", minClipping)
+    print("max: ", maxClipping)
+    print("prox: ", selected_objects_proximity)
+    print("dist: ", view_distance, end=" \n ")
+
+    return minClipping, maxClipping
+
+
+def apply_clipping():
+    minClipping, maxClipping = calculate_clipping()
     for workspace in bpy.data.workspaces:
         #print("workspaces:", workspace.name)
         for screen in workspace.screens:
@@ -128,21 +146,18 @@ def obj_callback(obj):
                             space.clip_start = minClipping
                             space.clip_end = maxClipping
                             #set camera clipping                            
-                            if space.camera and pref.camera_clipping:
+                            if space.camera and prefs().camera_clipping:
                                 #print("camera: ", space.camera.name)
                                 bpy.data.cameras[space.camera.name].clip_start = minClipping
                                 bpy.data.cameras[space.camera.name].clip_end = maxClipping
 
 
-def draw_button(self, context):
-    pref = bpy.context.preferences.addons[__package__.split(".")[0]].preferences    
-    
-    if pref.button_toggle:
+def draw_button(self, context):    
+    if prefs().button_toggle:
         if context.region.alignment == 'RIGHT':
             layout = self.layout
-            row = layout.row(align=True)
-           
-            if pref.button_text:
+            row = layout.row(align=True)           
+            if prefs().button_text:
                 row.operator(operator="scene.clipping_assistant_start", text="Start", icon='VIEW_CAMERA', emboss=True, depress=False)
                 row.operator(operator="scene.clipping_assistant_end", text="End", icon='CANCEL', emboss=True, depress=False)
             else:
@@ -150,18 +165,32 @@ def draw_button(self, context):
                 row.operator(operator="scene.clipping_assistant_end", text="", icon='CANCEL', emboss=True, depress=False)
 
 
-def calc_view_matrix():   
+def calc_view_matrix(obj):   
+    
+    bound_matrix = mathutils.Matrix()  
+    bounds = obj.bound_box
     for window in bpy.context.window_manager.windows:
         screen = window.screen
         for area in screen.areas:
             if area.type == 'VIEW_3D':             
                 view_3d = area.spaces.active.region_3d
-                """ print("window_matrix: ", view_3d.window_matrix)
-                print("view_matrix: ", view_3d.view_matrix) """
-                #print("perspective_matrix: ", view_3d.perspective_matrix)
+                #print("window_matrix: ", view_3d.window_matrix)
+                #print("view_matrix: ", view_3d.view_matrix)
+                print("perspective_matrix: ", view_3d.perspective_matrix)
                 print("view_location: ", view_3d.view_location)
                 print("view_rotation: ", view_3d.view_rotation.to_euler())
                 print("view_distance: ", view_3d.view_distance)
+                
+            
+                for i,v in enumerate(bounds):
+                    #print(bounds[i][:])                        
+                    bound_matrix[0].x = bounds[i][0]
+                    bound_matrix[1].y = bounds[i][1]
+                    bound_matrix[2].z = bounds[i][2]                                           
+                    
+                    print(bound_matrix * obj.matrix_world)
+                    print("\n")
+                
                 return view_3d.view_distance
                 
 
@@ -171,8 +200,14 @@ class ClippingAssistant_OT_register(bpy.types.Operator):
     bl_description = "Start and End Clipping Distance of Camera(s)"
     bl_options = {"REGISTER", "UNDO"}
 
+    @classmethod
+    def poll(cls, context):        
+        #calculate_clipping()
+        return
+
     def execute(self, context):
-        subscribe_to_obj(subscription_owner)
+        calculate_clipping()
+        #subscribe_to_obj(subscription_owner)
         return {"FINISHED"}
 
 
