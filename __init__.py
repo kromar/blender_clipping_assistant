@@ -185,7 +185,7 @@ class ClippingAssistant_Preferences(AddonPreferences):
     clip_end_factor: IntProperty(
         name="Clip End Multiplier",
         description="Value to calculate Clip End, the higher the value the bigger the Clip End Distance",
-        default=1,
+        default=2,
         min = 1,
         soft_max=100,
         step=1,
