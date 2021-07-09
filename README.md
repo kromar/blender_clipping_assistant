@@ -1,7 +1,9 @@
-# camera_clipping_assistant
+# clipping_assistant
 
-sets the camera start and end clip distance for viewport and the active camera to the active objects min/max dimensions (factor 100)
-![image](https://user-images.githubusercontent.com/1472884/90332905-317a4400-dfc1-11ea-80bd-7f4f4a55da44.png)
+Dynamicly adjust view and camera clipping distnaces based on view distnace and object selections
 
-![image](https://user-images.githubusercontent.com/1472884/122675458-d06f5e00-d1d9-11eb-8cf5-eb5d48675791.png)
+https://user-images.githubusercontent.com/1472884/125092377-9820b880-e0d1-11eb-95db-8a38af4415f4.mp4
+
+Factors to adapt the clipping distnaces can be adjusted in the addons preferences:
+![image](https://user-images.githubusercontent.com/1472884/125092862-0a919880-e0d2-11eb-87a1-f62a46fc701a.png)
 
