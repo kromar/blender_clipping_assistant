@@ -21,9 +21,7 @@ import numpy
 import mathutils
 from mathutils import Vector 
 from bpy.types import AddonPreferences, Operator
-from bpy.props import FloatProperty, BoolProperty, IntProperty, StringProperty
-
-from bpy.app.handlers import persistent
+from bpy.props import BoolProperty, IntProperty
 
 
 bl_info = {
@@ -38,9 +36,13 @@ bl_info = {
     "tracker_url": "https://github.com/kromar/blender_clipping_assistant/issues/new",
 }
 
+clipping_active = False
+
+
 def prefs():
     user_preferences = bpy.context.preferences
     return user_preferences.addons[__package__].preferences 
+
 
 def max_list_value(list):
         i = numpy.argmax(list)
@@ -60,50 +62,35 @@ def distance_vec(point1: Vector, point2: Vector) -> float:
         return (point2 - point1).length  
 
 
-def calc_view_matrix(obj):
-    for window in bpy.context.window_manager.windows:
-        screen = window.screen
-        for area in screen.areas:
-            if area.type == 'VIEW_3D':             
-                view_3d = area.spaces.active.region_3d
-                #print("window_matrix: ", view_3d.window_matrix)
-                #print("view_matrix: ", view_3d.view_matrix)
-                #print("perspective_matrix: ", view_3d.perspective_matrix)
-                #print("view_location: ", view_3d.view_location)
-                #print("view_rotation: ", view_3d.view_rotation.to_euler())
-                #print("view_distance: ", view_3d.view_distance)                   
-                return view_3d.view_distance
 
 
 # Callback function for location changes
-def calculate_clipping():
+def calculate_clipping(distance):
     objPosition = []
     objDimension = []    
 
-    for obj in bpy.context.selected_objects:        
-        view_distance = calc_view_matrix(obj)
+    for obj in bpy.context.selected_objects:
         objPosition.append(obj.location)
         objDimension.append(obj.dimensions) 
     
     if bpy.context.selected_objects:
         selected_objects_proximity = distance_vec(min(objPosition), max(objPosition))
-        minClipping = min_list_value(objDimension) / prefs().clip_start_factor / 100
-        maxClipping = (selected_objects_proximity + view_distance*2) * prefs().clip_end_factor
-        #maxClipping = selected_objects_proximity + max(max(objDimension)) * view_distance * prefs().clip_end_factor
-        #maxClipping = (selected_objects_proximity + max(max(objDimension)) + view_distance) * prefs().clip_end_factor * 2
+        minClipping = min_list_value(objDimension) / 100 / prefs().clip_start_factor 
+        maxClipping = (max(max(objDimension)) + selected_objects_proximity + distance) * prefs().clip_end_factor
         
         # fallback if objects without dimensions are selected
         if not minClipping:
-            minClipping = view_distance / prefs().clip_start_factor * 0.1
+            minClipping = distance / prefs().clip_start_factor * 0.1
         if not maxClipping:
-            maxClipping = view_distance * prefs().clip_end_factor
+            maxClipping = distance * prefs().clip_end_factor
 
-        """ print("\nview distance: ", view_distance)
+        """ print("\nview distance: ", distance)
         print("objects proximity: ", selected_objects_proximity)
-        print("min-max: ", minClipping, "<<=====>>", maxClipping) 
+        print("min-max: ", minClipping, "<<=====>>", maxClipping)         
         """
 
         return minClipping, maxClipping
+
 
 
 def apply_clipping():
@@ -112,14 +99,16 @@ def apply_clipping():
         for screen in workspace.screens:
             #print("screen: ", screen.name)
             for area in screen.areas:
-                if area.type == 'VIEW_3D':
+                if area.type == 'VIEW_3D':                    
+                    view_3d = area.spaces.active.region_3d
+                    distance = view_3d.view_distance
                     #print("area: ", area.type , end='\n')
                     for space in area.spaces:
                         if space.type == 'VIEW_3D':
                             #set viewport clipping
                             if bpy.context.selected_objects:
                                 #print(bpy.context.selected_objects)
-                                minClipping, maxClipping = calculate_clipping()
+                                minClipping, maxClipping = calculate_clipping(distance)
                                 #print("\nset clipping: ", minClipping, maxClipping)
                                 space.clip_start = minClipping
                                 space.clip_end = maxClipping
@@ -130,29 +119,6 @@ def apply_clipping():
                                     bpy.data.cameras[space.camera.name].clip_end = maxClipping
 
 
-clipping_active = False
-
-def draw_button(self, context): 
-    global clipping_active   
-    if prefs().button_toggle:
-        if context.region.alignment == 'RIGHT':
-            layout = self.layout
-            row = layout.row(align=True)   
-            if prefs().button_text:
-                row.operator(operator="scene.clipping_assistant", text="Start", icon='VIEW_CAMERA', emboss=True, depress=False).button_input = 'MANUAL'
-                if clipping_active:
-                    row.operator(operator="scene.clipping_assistant", text="Start", icon='CHECKBOX_HLT', emboss=True, depress=True).button_input = 'AUTOMATIC'
-                else:
-                    row.operator(operator="scene.clipping_assistant", text="Start", icon='CHECKBOX_DEHLT', emboss=True, depress=False).button_input = 'AUTOMATIC'
-
-            else:
-                row.operator(operator="scene.clipping_assistant", text="", icon='VIEW_CAMERA', emboss=True, depress=False).button_input = 'MANUAL'
-                if clipping_active:
-                    row.operator(operator="scene.clipping_assistant", text="", icon='CHECKBOX_HLT', emboss=True, depress=True).button_input = 'AUTOMATIC'
-                else:
-                    row.operator(operator="scene.clipping_assistant", text="", icon='CHECKBOX_DEHLT', emboss=True, depress=False).button_input = 'AUTOMATIC'
-
-               
 
 class ClippingAssistant(Operator):
     bl_idname = "scene.clipping_assistant"
@@ -160,38 +126,49 @@ class ClippingAssistant(Operator):
     bl_description = "Start and End Clipping Distance of Camera(s)"
     bl_options = {"REGISTER", "UNDO"}
 
-    button_input: StringProperty()
-
     @classmethod
-    def poll(cls, context):    
+    def poll(cls, context):   
         return context.selected_objects
     
     def execute(self, context):
-        wm = context.window_manager        
-
         global clipping_active
-        if self.button_input == 'AUTOMATIC':
-            if clipping_active:
-                clipping_active = False     
-                return {'FINISHED'}
-            else:
-                wm.modal_handler_add(self)
-                clipping_active = True
-                return {'RUNNING_MODAL'}
-
-        elif self.button_input == 'MANUAL':
-            apply_clipping()
-            return {'FINISHED'}
+        wm = context.window_manager   
+        if clipping_active:
+            print("Disable Auto Update")
+            clipping_active = False                     
+            return {'CANCELLED'}
+        else:
+            print("Add Auto Update")
+            wm.modal_handler_add(self)
+            clipping_active = True
+            return {'RUNNING_MODAL'}
 
     def cancel(self, context):        
-        return {'CANCELED'}
+        return {'CANCELLED'}
 
-    def modal(self, context, event):        
-        if event.type in {'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'TRACKPADZOOM'}:
-            apply_clipping()        
-        return {'PASS_THROUGH'}
+    def modal(self, context, event):   
+        if context.selected_objects:
+             apply_clipping()
 
-      
+        if clipping_active:
+            if event.type in {'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'TRACKPADZOOM'}:
+                apply_clipping()        
+            return {'PASS_THROUGH'}
+        else:
+            print("Stop auto update")                   
+            return {'CANCELLED'}
+
+
+def draw_button(self, context): 
+    global clipping_active   
+    if context.region.alignment == 'RIGHT':
+        layout = self.layout
+        row = layout.row(align=True)   
+        if clipping_active:
+            row.operator(operator="scene.clipping_assistant", text="", icon='VIEW_CAMERA', emboss=True, depress=True)
+        else:
+            row.operator(operator="scene.clipping_assistant", text="", icon='VIEW_CAMERA', emboss=True, depress=False)
+          
 
 class ClippingAssistant_Preferences(AddonPreferences):
     bl_idname = __package__
@@ -219,21 +196,10 @@ class ClippingAssistant_Preferences(AddonPreferences):
         description="When enabled the clipping Distance of the Active Camera is adjusted as well as the Viewport Clip Distance",
         default=False)
     
-    button_text: BoolProperty(
-        name="Show Button Text",
-        description="When enabled the Header Button will Show A Text",
-        default=False)
-
-    button_toggle: BoolProperty(
-        name="Show Button",
-        description="When enabled the Header Button will Show",
-        default=True)
 
     def draw(self, context):
         layout = self.layout
         layout.use_property_split = True
-        layout.prop(self, 'button_toggle') 
-        layout.prop(self, 'button_text')
         layout.prop(self, 'camera_clipping') 
         layout.prop(self, 'clip_start_factor') 
         layout.prop(self, 'clip_end_factor') 
