@@ -21,14 +21,14 @@ import numpy
 import time
 from mathutils import Vector 
 from bpy.types import AddonPreferences, Operator
-from bpy.props import BoolProperty, IntProperty
+from bpy.props import BoolProperty, IntProperty, FloatProperty
 
 
 bl_info = {
     "name": "Clipping Assistant",
     "description": "Assistant to set Viewport and Camera Clipping Distance",
     "author": "Daniel Grauer",
-    "version": (2, 0, 1),
+    "version": (2, 0, 2),
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
@@ -88,6 +88,9 @@ def apply_clipping():
             if area.type in {'VIEW_3D'}:                    
                 view_3d = area.spaces.active.region_3d
                 distance = view_3d.view_distance
+                view_location = view_3d.view_location
+                print(view_location)
+
                 #print("area: ", area.type , end='\n')
                 for space in area.spaces:                    
                     if space.type in {'VIEW_3D'}:
@@ -99,7 +102,7 @@ def apply_clipping():
                             #print(bpy.context.selected_objects)
                             if prefs().debug_profiling:
                                 start_time = profiler(start_time, "apply_clipping") 
-                            minClipping, maxClipping = calculate_clipping(distance)
+                            minClipping, maxClipping = calculate_clipping(distance, view_location)
                             
                             if prefs().debug_profiling:
                                 start_time = profiler(start_time, "calculate_clipping") 
@@ -121,41 +124,60 @@ def apply_clipping():
     if prefs().debug_profiling:
         total_time = profiler(total_time, "total time") 
         print("="*80)
-            
 
-def calculate_clipping(distance):   
+def object_center():            
+    obj = bpy.context.active_object
+    local_bbox_center = 0.125 * sum((Vector(b) for b in obj.bound_box), Vector())
+    global_bbox_center = obj.matrix_world @ local_bbox_center
+    print("Origin: ", global_bbox_center)
+    return global_bbox_center
+
+
+def calculate_clipping(distance, view_location):   
     if prefs().debug_profiling:
         start_time = profiler(time.perf_counter(), "Start calculate_clipping") 
-     
-    objPosition = [obj.location for obj in bpy.context.selected_objects] 
-    objDimension = [obj.dimensions for obj in bpy.context.selected_objects] 
     
+    objPosition = [obj.location for obj in bpy.context.selected_objects] 
+    objDimension = [obj.dimensions for obj in bpy.context.selected_objects]  
+    selected_objects_proximity = distance_vec(min(objPosition), max(objPosition))       
     if prefs().debug_profiling:
-        start_time = profiler(start_time, "transforms")
-
-
-    if bpy.context.selected_objects:
-        selected_objects_proximity = distance_vec(min(objPosition), max(objPosition))
+        start_time = profiler(start_time, "obj details")
+    
+    if prefs().clip_mesh:
+        
+        #origin = object_center()
+        #print("origin: ", origin.length)
+        #print("view_location: ", view_location.length)
+        #view_vector  = view_location - origin
+        #print(view_vector.length, view_vector)
+        print(distance)
+        minClipping = distance
+        
+        #print("minClip: ", minClipping)
+        if prefs().debug_profiling:
+            start_time = profiler(start_time, "minClipping")
+    else:
         minClipping = min_list_value(objDimension) / 100 / prefs().clip_start_factor
         if prefs().debug_profiling:
             start_time = profiler(start_time, "minClipping")
 
-        maxClipping = (max(max(objDimension)) + selected_objects_proximity + distance) * prefs().clip_end_factor
-        if prefs().debug_profiling:
-            start_time = profiler(start_time, "maxClipping")
-        
-        # fallback if objects without dimensions are selected
-        if not minClipping:
-            minClipping = distance / prefs().clip_start_factor * 0.1
-        if not maxClipping:
-            maxClipping = distance * prefs().clip_end_factor
+    
+    maxClipping = (max(max(objDimension)) + selected_objects_proximity + distance) * prefs().clip_end_factor
+    if prefs().debug_profiling:
+        start_time = profiler(start_time, "maxClipping")
+    
+    # fallback if objects without dimensions are selected
+    if not minClipping:
+        minClipping = distance / prefs().clip_start_factor * 0.1
+    if not maxClipping:
+        maxClipping = distance * prefs().clip_end_factor
 
-        """ print("\nview distance: ", distance)
-        print("objects proximity: ", selected_objects_proximity)
-        print("min-max: ", minClipping, "<<=====>>", maxClipping)         
-        """
-        
-        return minClipping, maxClipping
+    """ print("\nview distance: ", distance)
+    print("objects proximity: ", selected_objects_proximity)
+    print("min-max: ", minClipping, "<<=====>>", maxClipping)         
+    """
+    
+    return minClipping, maxClipping
 
 
 class ClippingAssistant(Operator):
@@ -230,7 +252,26 @@ class ClippingAssistant_Preferences(AddonPreferences):
         name="Apply Clipping To Active Camera",
         description="When enabled the clipping Distance of the Active Camera is adjusted as well as the Viewport Clip Distance",
         default=False)
-        
+
+    clip_mesh: BoolProperty(
+        name="clip_mesh",
+        description="clip_mesh",
+        default=True)
+
+    clip_mesh_distance: FloatProperty(
+        name="clip_mesh_distance",
+        description="clip_mesh_distance",
+        default=0,
+        min = -1,
+        soft_max=1,
+        step=0.1,
+        subtype='FACTOR')
+
+    debug: BoolProperty(
+        name="Debug",
+        description="Debug",
+        default=False)
+
     debug_profiling: BoolProperty(
         name="Debug: Profiling",
         description="enable some performance output for debuggung",
@@ -241,9 +282,15 @@ class ClippingAssistant_Preferences(AddonPreferences):
         layout = self.layout
         layout.use_property_split = True
         layout.prop(self, 'camera_clipping') 
+        layout.prop(self, 'clip_mesh') 
+        if self.clip_mesh: 
+            layout.prop(self, 'clip_mesh_distance') 
         layout.prop(self, 'clip_start_factor') 
         layout.prop(self, 'clip_end_factor') 
-        layout.prop(self, 'debug_profiling') 
+    
+        layout.prop(self, 'debug') 
+        if self.debug:
+            layout.prop(self, 'debug_profiling') 
 
 
 def profiler(start_time=False, string=None): 
