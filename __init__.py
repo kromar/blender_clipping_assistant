@@ -106,6 +106,9 @@ def apply_clipping():
                             #print("\nset clipping: ", minClipping, maxClipping)
                             space.clip_start = minClipping
                             space.clip_end = maxClipping
+                            if prefs().volume_clipping:
+                                bpy.context.scene.eevee.volumetric_start = minClipping
+                                bpy.context.scene.eevee.volumetric_end = maxClipping
                             
                             if prefs().debug_profiling:
                                 start_time = profiler(start_time, "clip") 
@@ -114,6 +117,7 @@ def apply_clipping():
                                 #print("camera: ", space.camera.name)
                                 bpy.data.cameras[space.camera.name].clip_start = minClipping
                                 bpy.data.cameras[space.camera.name].clip_end = maxClipping
+
                         
                         if prefs().debug_profiling:
                             print("="*80)
@@ -136,7 +140,7 @@ def calculate_clipping(distance):
 
     if bpy.context.selected_objects:
         selected_objects_proximity = distance_vec(min(objPosition), max(objPosition))
-        minClipping = min_list_value(objDimension) / 100 / prefs().clip_start_factor
+        minClipping = (min_list_value(objDimension) + distance) /100 / prefs().clip_start_factor
         if prefs().debug_profiling:
             start_time = profiler(start_time, "minClipping")
 
@@ -230,6 +234,11 @@ class ClippingAssistant_Preferences(AddonPreferences):
         name="Apply Clipping To Active Camera",
         description="When enabled the clipping Distance of the Active Camera is adjusted as well as the Viewport Clip Distance",
         default=False)
+
+    volume_clipping: BoolProperty(
+        name="Apply Clipping To Volumetrics",
+        description="Adapt Clipping distnaces of volumetric effects",
+        default=True)
         
     debug_profiling: BoolProperty(
         name="Debug: Profiling",
@@ -241,6 +250,7 @@ class ClippingAssistant_Preferences(AddonPreferences):
         layout = self.layout
         layout.use_property_split = True
         layout.prop(self, 'camera_clipping') 
+        layout.prop(self, 'volume_clipping') 
         layout.prop(self, 'clip_start_factor') 
         layout.prop(self, 'clip_end_factor') 
         layout.prop(self, 'debug_profiling') 
