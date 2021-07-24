@@ -28,7 +28,7 @@ bl_info = {
     "name": "Clipping Assistant",
     "description": "Assistant to set Viewport and Camera Clipping Distance",
     "author": "Daniel Grauer",
-    "version": (2, 0, 1),
+    "version": (2, 0, 2),
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
