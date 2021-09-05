@@ -21,14 +21,14 @@ import numpy
 import time
 from mathutils import Vector 
 from bpy.types import AddonPreferences, Operator
-from bpy.props import BoolProperty, IntProperty
+from bpy.props import BoolProperty, IntProperty, FloatProperty
 
 
 bl_info = {
     "name": "Clipping Assistant",
     "description": "Assistant to set Viewport and Camera Clipping Distance",
     "author": "Daniel Grauer",
-    "version": (2, 0, 2),
+    "version": (2, 0, 3),
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
@@ -212,20 +212,20 @@ def draw_button(self, context):
 class ClippingAssistant_Preferences(AddonPreferences):
     bl_idname = __package__
 
-    clip_start_factor: IntProperty(
+    clip_start_factor: FloatProperty(
         name="Clip Start Divider",
         description="Value to calculate Clip Start, the higher the value the smaller the Clip Start Distance",
-        default=1,
-        min = 1,
+        default=0.05,
+        min = 0.01,
         soft_max=100,
         step=1,
         subtype='FACTOR') 
 
-    clip_end_factor: IntProperty(
+    clip_end_factor: FloatProperty(
         name="Clip End Multiplier",
         description="Value to calculate Clip End, the higher the value the bigger the Clip End Distance",
         default=2,
-        min = 1,
+        min = 0.01,
         soft_max=100,
         step=1,
         subtype='FACTOR') 
