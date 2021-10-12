@@ -237,7 +237,7 @@ class ClippingAssistant_Preferences(AddonPreferences):
 
     volume_clipping: BoolProperty(
         name="Apply Clipping To Volumetrics",
-        description="Adapt Clipping distnaces of volumetric effects",
+        description="Adapt Clipping distances of volumetric effects",
         default=True)
         
     debug_profiling: BoolProperty(
