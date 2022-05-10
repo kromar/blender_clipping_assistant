@@ -16,6 +16,7 @@
 #
 # ##### END GPL LICENSE BLOCK #####
 
+from cmath import nan
 import bpy
 import numpy
 import time
@@ -28,7 +29,7 @@ bl_info = {
     "name": "Clipping Assistant",
     "description": "Assistant to set Viewport and Camera Clipping Distance",
     "author": "Daniel Grauer",
-    "version": (2, 0, 3),
+    "version": (2, 0, 4),
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
@@ -86,7 +87,7 @@ def apply_clipping():
         for area in screen.areas:
 
             if area.type in {'VIEW_3D'}:                    
-                view_3d = area.spaces.active.region_3d
+                view_3d = area.spaces.active.region_3d                    
                 distance = view_3d.view_distance
                 #print("area: ", area.type , end='\n')
                 for space in area.spaces:                    
@@ -153,11 +154,12 @@ def calculate_clipping(distance):
             minClipping = distance / prefs().clip_start_factor * 0.1
         if not maxClipping:
             maxClipping = distance * prefs().clip_end_factor
-
-        """ print("\nview distance: ", distance)
-        print("objects proximity: ", selected_objects_proximity)
-        print("min-max: ", minClipping, "<<=====>>", maxClipping)         
-        """
+        
+        if prefs().debug_profiling:
+            print("\nview distance: ", distance)
+            print("objects proximity: ", selected_objects_proximity)
+            print("min-max: ", minClipping, "<<=====>>", maxClipping)         
+       
         
         return minClipping, maxClipping
 
@@ -168,8 +170,10 @@ class ClippingAssistant(Operator):
     bl_description = "Start and End Clipping Distance of Camera(s)"
     bl_options = {"REGISTER", "UNDO"}
 
+    ob_type = ['MESH', 'CURVE', 'SURFACE', 'META', 'FONT', 'HAIR', 
+                'POINTCLOUD', 'VOLUME', 'GPENCIL', 'ARMATURE', 'LATTICE']  
     @classmethod
-    def poll(cls, context):   
+    def poll(cls, context):      
         return context.selected_objects
     
     def execute(self, context):
@@ -190,8 +194,10 @@ class ClippingAssistant(Operator):
 
     def modal(self, context, event):   
         if clipping_active:
-            if event.type in {'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'TRACKPADZOOM', 'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE'}:                
-                apply_clipping()       
+            if event.type in {'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'TRACKPADZOOM', 'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE'} or event.ctrl or event.shift or event.alt:                
+                for obj in context.selected_objects:
+                    if obj.type in self.ob_type:  
+                        apply_clipping()       
             return {'PASS_THROUGH'}
         else:
             print("Stop auto update")                   
