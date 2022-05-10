@@ -29,7 +29,7 @@ bl_info = {
     "name": "Clipping Assistant",
     "description": "Assistant to set Viewport and Camera Clipping Distance",
     "author": "Daniel Grauer",
-    "version": (2, 0, 4),
+    "version": (2, 0, 5),
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
@@ -94,31 +94,33 @@ def apply_clipping():
                     if space.type in {'VIEW_3D'}:
                         if prefs().debug_profiling:
                             start_time = profiler(start_time, "space.type in")                     
-
-                        #set viewport clipping
-                        if bpy.context.selected_objects:
-                            #print(bpy.context.selected_objects)
-                            if prefs().debug_profiling:
-                                start_time = profiler(start_time, "apply_clipping") 
-                            minClipping, maxClipping = calculate_clipping(distance)
-                            
-                            if prefs().debug_profiling:
-                                start_time = profiler(start_time, "calculate_clipping") 
-                            #print("\nset clipping: ", minClipping, maxClipping)
-                            space.clip_start = minClipping
-                            space.clip_end = maxClipping
-                            if prefs().volume_clipping:
-                                bpy.context.scene.eevee.volumetric_start = minClipping
-                                bpy.context.scene.eevee.volumetric_end = maxClipping
-                            
-                            if prefs().debug_profiling:
-                                start_time = profiler(start_time, "clip") 
-                            #set camera clipping                            
-                            if space.camera and prefs().camera_clipping:
-                                #print("camera: ", space.camera.name)
-                                bpy.data.cameras[space.camera.name].clip_start = minClipping
-                                bpy.data.cameras[space.camera.name].clip_end = maxClipping
-
+                        
+                        if prefs().auto_clipping: 
+                            #set viewport clipping
+                            if bpy.context.selected_objects:
+                                #print(bpy.context.selected_objects)
+                                if prefs().debug_profiling:
+                                    start_time = profiler(start_time, "apply_clipping") 
+                                minClipping, maxClipping = calculate_clipping(distance)                                
+                        else:
+                            minClipping, maxClipping = prefs().clip_start_distance, prefs().clip_end_distance                        
+                        
+                        if prefs().debug_profiling:
+                            start_time = profiler(start_time, "calculate_clipping") 
+                        #print("\nset clipping: ", minClipping, maxClipping)
+                        space.clip_start = minClipping
+                        space.clip_end = maxClipping
+                        if prefs().volume_clipping:
+                            bpy.context.scene.eevee.volumetric_start = minClipping
+                            bpy.context.scene.eevee.volumetric_end = maxClipping
+                        
+                        if prefs().debug_profiling:
+                            start_time = profiler(start_time, "clip") 
+                        #set camera clipping                            
+                        if space.camera and prefs().camera_clipping:
+                            #print("camera: ", space.camera.name)
+                            bpy.data.cameras[space.camera.name].clip_start = minClipping
+                            bpy.data.cameras[space.camera.name].clip_end = maxClipping
                         
                         if prefs().debug_profiling:
                             print("="*80)
@@ -128,10 +130,10 @@ def apply_clipping():
         print("="*80)
             
 
-def calculate_clipping(distance):   
+def calculate_clipping(distance):  
     if prefs().debug_profiling:
         start_time = profiler(time.perf_counter(), "Start calculate_clipping") 
-     
+    
     objPosition = [obj.location for obj in bpy.context.selected_objects] 
     objDimension = [obj.dimensions for obj in bpy.context.selected_objects] 
     
@@ -158,9 +160,8 @@ def calculate_clipping(distance):
         if prefs().debug_profiling:
             print("\nview distance: ", distance)
             print("objects proximity: ", selected_objects_proximity)
-            print("min-max: ", minClipping, "<<=====>>", maxClipping)         
-       
-        
+            print("min-max: ", minClipping, "<<=====>>", maxClipping)    
+
         return minClipping, maxClipping
 
 
@@ -218,12 +219,18 @@ def draw_button(self, context):
 class ClippingAssistant_Preferences(AddonPreferences):
     bl_idname = __package__
 
+    auto_clipping: BoolProperty(
+        name="Auto Clipping",
+        description="Adjust clipping distance automaticly on selected context",
+        default=False)
+
     clip_start_factor: FloatProperty(
         name="Clip Start Divider",
         description="Value to calculate Clip Start, the higher the value the smaller the Clip Start Distance",
         default=0.05,
-        min = 0.01,
-        soft_max=100,
+        min = 0.001,
+        soft_min = 0.01,
+        soft_max=0.1,
         step=1,
         subtype='FACTOR') 
 
@@ -232,9 +239,29 @@ class ClippingAssistant_Preferences(AddonPreferences):
         description="Value to calculate Clip End, the higher the value the bigger the Clip End Distance",
         default=2,
         min = 0.01,
-        soft_max=100,
+        soft_max=4,
         step=1,
-        subtype='FACTOR') 
+        subtype='FACTOR')
+
+    clip_start_distance: FloatProperty(
+        name="Clip Start Distance",
+        description="Set the Clip Start distance",
+        default=0.001,
+        min=0.000001, 
+        soft_min = 0.0001,
+        soft_max=0.01,
+        step=1,
+        subtype='DISTANCE') 
+
+    clip_end_distance: FloatProperty(
+        name="Clip End Distance",
+        description="Set the Clip End distance",
+        default=100,
+        min = 0.01,
+        soft_min = 0.01,
+        soft_max=200,
+        step=1,
+        subtype='DISTANCE') 
 
     camera_clipping: BoolProperty(
         name="Apply Clipping To Active Camera",
@@ -254,11 +281,19 @@ class ClippingAssistant_Preferences(AddonPreferences):
 
     def draw(self, context):
         layout = self.layout
-        layout.use_property_split = True
+        layout.use_property_split = False
         layout.prop(self, 'camera_clipping') 
         layout.prop(self, 'volume_clipping') 
-        layout.prop(self, 'clip_start_factor') 
-        layout.prop(self, 'clip_end_factor') 
+        
+        layout.prop(self, 'auto_clipping') 
+        column = layout.box()
+        if self.auto_clipping:
+            column.prop(self, 'clip_start_factor', slider=True)
+            column.prop(self, 'clip_end_factor', slider=True)
+        else:
+            column.prop(self, 'clip_start_distance', slider=True)
+            column.prop(self, 'clip_end_distance', slider=True)
+
         layout.prop(self, 'debug_profiling') 
 
 
