@@ -222,7 +222,7 @@ class ClippingAssistant_Preferences(AddonPreferences):
     auto_clipping: BoolProperty(
         name="Auto Clipping",
         description="Adjust clipping distance automaticly on selected context",
-        default=False)
+        default=True)
 
     clip_start_factor: FloatProperty(
         name="Clip Start Divider",
