@@ -24,6 +24,11 @@ from mathutils import Vector
 from bpy.types import AddonPreferences, Operator
 from bpy.props import BoolProperty, IntProperty, FloatProperty
 
+import blf
+import gpu
+from random import random
+from gpu_extras.batch import batch_for_shader
+
 
 bl_info = {
     "name": "Clipping Assistant",
@@ -170,6 +175,8 @@ class ClippingAssistant(Operator):
     bl_label = "Toggle Automatic Clipping"
     bl_description = "Start and End Clipping Distance of Camera(s)"
     bl_options = {"REGISTER", "UNDO"}
+    
+    
 
     ob_type = ['MESH', 'CURVE', 'SURFACE', 'META', 'FONT', 'HAIR', 
                 'POINTCLOUD', 'VOLUME', 'GPENCIL', 'ARMATURE', 'LATTICE']  
@@ -182,18 +189,109 @@ class ClippingAssistant(Operator):
         wm = context.window_manager   
         if clipping_active:
             print("Disable Auto Update")
-            clipping_active = False                     
+            clipping_active = False   
+            #bpy.types.SpaceView3D.draw_handler_remove(draw, (), 'WINDOW', 'POST_VIEW')                   
+
+            
             return {'CANCELLED'}
         else:
             print("Add Auto Update")
             wm.modal_handler_add(self)
             clipping_active = True
+            self.draw_3d(context)
             return {'RUNNING_MODAL'}
 
     def cancel(self, context):        
         return {'CANCELLED'}
 
-    def modal(self, context, event):   
+      
+
+    def draw_3d(self, context):  
+        font_info = {
+            "fontid": 0,
+            "handler": None,
+        }
+        scale = bpy.context.scene.unit_settings.scale_length
+        string = f'{"Scale:", scale}'
+        #font_size = 
+        def draw_callback_px(self, context):
+            """Draw on the viewports"""
+            # BLF drawing routine
+            fontid = font_info["fontid"]
+            blf.position(fontid, 130, 800, 0)
+            blf.size(fontid, 14, 72)
+            blf.color(fontid, 0, 1, 1, 1)
+            #blf.shadow(fontid, 5, 1, 0, 0, 1) #blf.shadow(fontid, level, r, g, b, a) level (int) – The blur level, can be 3, 5 or 0.
+            blf.draw(fontid, string)
+    
+        """init function - runs once"""
+        import os
+        # Create a new font object, use external ttf file.
+        font_path = bpy.path.abspath('//Zeyada.ttf')
+        # Store the font indice - to use later.
+        if os.path.exists(font_path):
+            font_info["fontid"] = blf.load(font_path)
+        else:
+            # Default font.
+            font_info["fontid"] = 0
+
+        # set the font drawing routine to run every frame
+        font_info["handler"] = bpy.types.SpaceView3D.draw_handler_add(draw_callback_px, (None, None), 'WINDOW', 'POST_PIXEL')
+
+
+
+        
+        vertex_shader = '''
+            uniform mat4 u_ViewProjectionMatrix;
+
+            in vec3 position;
+            in float arcLength;
+
+            out float v_ArcLength;
+
+            void main()
+            {
+                v_ArcLength = arcLength;
+                gl_Position = u_ViewProjectionMatrix * vec4(position, 1.0f);
+            }
+        '''
+
+        fragment_shader = '''
+            uniform float u_Scale;
+
+            in float v_ArcLength;
+            out vec4 FragColor;
+
+            void main()
+            {
+                if (step(sin(v_ArcLength * u_Scale), 0.5) == 1) discard;
+                FragColor = vec4(1.0);
+            }
+        '''
+
+        coords = [Vector((random(), random(), random())) * 5 for _ in range(5)]
+
+        arc_lengths = [0]
+        for a, b in zip(coords[:-1], coords[1:]):
+            arc_lengths.append(arc_lengths[-1] + (a - b).length)
+
+        shader = gpu.types.GPUShader(vertex_shader, fragment_shader)
+        batch = batch_for_shader(
+            shader, 'LINE_STRIP',
+            {"position": coords, "arcLength": arc_lengths},
+        )
+
+        def draw():
+            shader.bind()
+            matrix = bpy.context.region_data.perspective_matrix
+            shader.uniform_float("u_ViewProjectionMatrix", matrix)
+            shader.uniform_float("u_Scale", 10)
+            batch.draw(shader)
+
+        bpy.types.SpaceView3D.draw_handler_add(draw, (), 'WINDOW', 'POST_VIEW')
+
+
+    def modal(self, context, event): 
         if clipping_active:
             if event.type in {'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'TRACKPADZOOM', 'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE'} or event.ctrl or event.shift or event.alt:                
                 for obj in context.selected_objects:
@@ -201,7 +299,7 @@ class ClippingAssistant(Operator):
                         apply_clipping()       
             return {'PASS_THROUGH'}
         else:
-            print("Stop auto update")                   
+            print("Stop auto update")                  
             return {'CANCELLED'}
 
 
