@@ -29,7 +29,7 @@ bl_info = {
     "name": "Clipping Assistant",
     "description": "Assistant to set Viewport and Camera Clipping Distance",
     "author": "Daniel Grauer",
-    "version": (2, 0, 5),
+    "version": (2, 0, 6),
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
@@ -61,8 +61,7 @@ def min_list_value(input_list):
     filtered_value = 0
     masked_list = numpy.ma.masked_values(input_list, filtered_value)  #this seems to be expensive, how about popping all 0 values?
     min_index = numpy.argmin(masked_list[0])
-    min_value = masked_list[0][min_index]
-    return min_value
+    return masked_list[0][min_index]
 
 
 def distance_vec(point1: Vector, point2: Vector) -> float: 
@@ -72,15 +71,8 @@ def distance_vec(point1: Vector, point2: Vector) -> float:
 
 def apply_clipping():    
     if prefs().debug_profiling:
-        total_time = profiler(time.perf_counter(), "Start Object debug_profiling")
+        total_time = profiler(time.perf_counter(), "Start Total debug_profiling")
         start_time = profiler(time.perf_counter(), "Start Object debug_profiling")
-
-    ''' this part would be to update in all workspaces, however with the new dynamic method it is redundant.
-        its also costs less to only update the active screen'''
-    """ for workspace in bpy.data.workspaces:
-        #print("workspaces:", workspace.name)
-        for screen in workspace.screens:
-            #print("screen: ", screen.name) """
     
     for window in bpy.context.window_manager.windows:
         screen = window.screen
@@ -170,6 +162,7 @@ class ClippingAssistant(Operator):
     bl_label = "Toggle Automatic Clipping"
     bl_description = "Start and End Clipping Distance of Camera(s)"
     bl_options = {"REGISTER", "UNDO"}
+    
 
     ob_type = ['MESH', 'CURVE', 'SURFACE', 'META', 'FONT', 'HAIR', 
                 'POINTCLOUD', 'VOLUME', 'GPENCIL', 'ARMATURE', 'LATTICE']  
@@ -181,19 +174,22 @@ class ClippingAssistant(Operator):
         global clipping_active
         wm = context.window_manager   
         if clipping_active:
-            print("Disable Auto Update")
+            print("Clipping Assistant: Disable Auto Update")
             clipping_active = False                     
-            return {'CANCELLED'}
+            return {'FINISHED'}
         else:
-            print("Add Auto Update")
+            print("Clipping Assistant: Add Auto Update")
             wm.modal_handler_add(self)
             clipping_active = True
             return {'RUNNING_MODAL'}
 
-    def cancel(self, context):        
-        return {'CANCELLED'}
+    def cancel(self, context) -> None:
+        global clipping_active   
+        clipping_active = False     
+        return None
 
-    def modal(self, context, event):   
+    def modal(self, context, event): 
+        global clipping_active
         if clipping_active:
             if event.type in {'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'TRACKPADZOOM', 'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE'} or event.ctrl or event.shift or event.alt:                
                 for obj in context.selected_objects:
@@ -201,8 +197,9 @@ class ClippingAssistant(Operator):
                         apply_clipping()       
             return {'PASS_THROUGH'}
         else:
-            print("Stop auto update")                   
-            return {'CANCELLED'}
+            print("Clipping Assistant: Stop auto update")  
+            clipping_active = False                
+            return {'FINISHED'}
 
 
 def draw_button(self, context): 
