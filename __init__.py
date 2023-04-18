@@ -64,11 +64,6 @@ def min_list_value(input_list):
     return masked_list[0][min_index]
 
 
-def distance_vec(point1: Vector, point2: Vector) -> float: 
-        """Calculate distance between two points.""" 
-        return (point2 - point1).length  
-
-
 def apply_clipping():    
     if prefs().debug_profiling:
         total_time = profiler(time.perf_counter(), "Start Total debug_profiling")
@@ -89,11 +84,9 @@ def apply_clipping():
                         
                         if prefs().auto_clipping: 
                             #set viewport clipping
-                            if bpy.context.selected_objects:
-                                #print(bpy.context.selected_objects)
-                                if prefs().debug_profiling:
-                                    start_time = profiler(start_time, "apply_clipping") 
-                                minClipping, maxClipping = calculate_clipping(distance)                                
+                            if prefs().debug_profiling:
+                                start_time = profiler(start_time, "apply_clipping") 
+                            minClipping, maxClipping = calculate_clipping(distance)                                
                         else:
                             minClipping, maxClipping = prefs().clip_start_distance, prefs().clip_end_distance                        
                         
@@ -125,21 +118,23 @@ def apply_clipping():
 def calculate_clipping(distance):  
     if prefs().debug_profiling:
         start_time = profiler(time.perf_counter(), "Start calculate_clipping") 
-    
-    objPosition = [obj.location for obj in bpy.context.selected_objects] 
-    objDimension = [obj.dimensions for obj in bpy.context.selected_objects] 
-    
-    if prefs().debug_profiling:
-        start_time = profiler(start_time, "transforms")
-
 
     if bpy.context.selected_objects:
-        selected_objects_proximity = distance_vec(min(objPosition), max(objPosition))
+        objLocation = [obj.location for obj in bpy.context.selected_objects] 
+        objDimension = [obj.dimensions for obj in bpy.context.selected_objects]        
+        if prefs().debug_profiling:
+            start_time = profiler(start_time, "transforms")
+
         minClipping = (min_list_value(objDimension) + distance) /100 / prefs().clip_start_factor
         if prefs().debug_profiling:
             start_time = profiler(start_time, "minClipping")
 
-        maxClipping = (max(max(objDimension)) + selected_objects_proximity + distance) * prefs().clip_end_factor
+        # when having multiple selected obejcts and they are far appart the distance between them needs to be considered
+        # to adjust the max clipping distance
+        #selected_objects_proximity = object_distance(min(objLocation), max(objLocation))
+        selected_objects_proximity = (max(objLocation) - min(objLocation)).length
+        
+        maxClipping = (max(max(objDimension)) + selected_objects_proximity + distance) * prefs().clip_end_factor        
         if prefs().debug_profiling:
             start_time = profiler(start_time, "maxClipping")
         
@@ -150,11 +145,11 @@ def calculate_clipping(distance):
             maxClipping = distance * prefs().clip_end_factor
         
         if prefs().debug_profiling:
-            print("\nview distance: ", distance)
-            print("objects proximity: ", selected_objects_proximity)
-            print("min-max: ", minClipping, "<<=====>>", maxClipping)    
+            print("\nmin-max: ", minClipping, "<<=====>>", maxClipping)
+            print("view distance: ", distance)
+            print("selected_objects_proximity: ", selected_objects_proximity, end='\n')   
 
-        return minClipping, maxClipping
+        return minClipping, maxClipping    
 
 
 class ClippingAssistant(Operator):
