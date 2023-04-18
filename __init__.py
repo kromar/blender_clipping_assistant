@@ -163,7 +163,7 @@ class ClippingAssistant(Operator):
                 'POINTCLOUD', 'VOLUME', 'GPENCIL', 'ARMATURE', 'LATTICE']  
     @classmethod
     def poll(cls, context):      
-        return context.selected_objects
+        return context.selected_objects or context.active_object
     
     def execute(self, context):
         global clipping_active
