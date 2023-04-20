@@ -72,7 +72,6 @@ def apply_clipping():
     for window in bpy.context.window_manager.windows:
         screen = window.screen
         for area in screen.areas:
-
             if area.type in {'VIEW_3D'}:                    
                 view_3d = area.spaces.active.region_3d                    
                 distance = view_3d.view_distance
@@ -86,10 +85,12 @@ def apply_clipping():
                             #set viewport clipping
                             if prefs().debug_profiling:
                                 start_time = profiler(start_time, "apply_clipping") 
+                            print("\n\nDISTANCE: ", distance)
                             minClipping, maxClipping = calculate_clipping(distance)                                
                         else:
                             minClipping, maxClipping = prefs().clip_start_distance, prefs().clip_end_distance                        
                         
+
                         if prefs().debug_profiling:
                             start_time = profiler(start_time, "calculate_clipping") 
                         #print("\nset clipping: ", minClipping, maxClipping)
@@ -113,11 +114,46 @@ def apply_clipping():
     if prefs().debug_profiling:
         total_time = profiler(total_time, "total time") 
         print("="*80)
-            
+        
 
-def calculate_clipping(distance):  
+def get_outliner_objects():
+    def get_outliner_area(context):
+        for area in context.screen.areas:
+            if area is None:
+                continue
+            if area.type != 'OUTLINER':
+                continue
+            return area
+
+    def get_outliner_window(area):
+        for region in area.regions:
+            if region.type != 'WINDOW':
+                continue
+            return region
+
+    # we will override context to be able to access selected_ids
+
+    # assuming that context is defined
+    outliner_area = get_outliner_area(bpy.context)
+    outliner_window = get_outliner_window(outliner_area)
+
+    # deprecated since 3.2 but easy to use
+    context_overridden = bpy.context.copy()
+    context_overridden['area'] = outliner_area
+    context_overridden['region'] = outliner_window
+
+    # @brockmann's solution can then be used to output a nice dictionary
+    print("OVERRIDE: ", context_overridden['active_object'])       
+    return context_overridden['active_object']   
+
+
+
+def calculate_clipping(distance=0):  
     if prefs().debug_profiling:
         start_time = profiler(time.perf_counter(), "Start calculate_clipping") 
+    
+    outliner_object = get_outliner_objects()
+    print("ALTERNATE method: ", outliner_object.name, bpy.context.active_object.name, bpy.context.selected_objects)
 
     if bpy.context.selected_objects:
         objLocation = [obj.location for obj in bpy.context.selected_objects] 
@@ -149,7 +185,14 @@ def calculate_clipping(distance):
             print("view distance: ", distance)
             print("selected_objects_proximity: ", selected_objects_proximity, end='\n')   
 
-        return minClipping, maxClipping    
+        return minClipping, maxClipping   
+    else:
+        return 0.1*distance, 100*distance
+    
+    """ elif not bpy.context.selected_objects and bpy.context.active_object:
+        print("ALTERNATE method 22: ", bpy.context.active_object, bpy.context.selected_objects)
+        return  """
+
 
 
 class ClippingAssistant(Operator):
@@ -189,7 +232,9 @@ class ClippingAssistant(Operator):
             if event.type in {'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'TRACKPADZOOM', 'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE'} or event.ctrl or event.shift or event.alt:                
                 for obj in context.selected_objects:
                     if obj.type in self.ob_type:  
-                        apply_clipping()       
+                        apply_clipping()   
+                if bpy.context.active_object:
+                    apply_clipping()  
             return {'PASS_THROUGH'}
         else:
             print("Clipping Assistant: Stop auto update")  
