@@ -29,7 +29,7 @@ bl_info = {
     "name": "Clipping Assistant",
     "description": "Assistant to set Viewport and Camera Clipping Distance",
     "author": "Daniel Grauer",
-    "version": (2, 0, 7),
+    "version": (2, 0, 8),
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
@@ -74,7 +74,7 @@ def apply_clipping():
         for area in screen.areas:
             if area.type in {'VIEW_3D'}:                    
                 view_3d = area.spaces.active.region_3d                    
-                distance = view_3d.view_distance
+                view_distance = view_3d.view_distance
                 #print("area: ", area.type , end='\n')
                 for space in area.spaces:                    
                     if space.type in {'VIEW_3D'}:
@@ -85,15 +85,14 @@ def apply_clipping():
                             #set viewport clipping
                             if prefs().debug_profiling:
                                 start_time = profiler(start_time, "apply_clipping") 
-                            print("\n\nDISTANCE: ", distance)
-                            minClipping, maxClipping = calculate_clipping(distance)                                
+                            print("\n\nDISTANCE: ", view_distance)
+                            minClipping, maxClipping = get_clipping(view_distance)                                
                         else:
-                            minClipping, maxClipping = prefs().clip_start_distance, prefs().clip_end_distance                        
-                        
-
+                            minClipping, maxClipping = prefs().clip_start_distance, prefs().clip_end_distance   
                         if prefs().debug_profiling:
-                            start_time = profiler(start_time, "calculate_clipping") 
+                            start_time = profiler(start_time, "get_clipping") 
                         #print("\nset clipping: ", minClipping, maxClipping)
+
                         space.clip_start = minClipping
                         space.clip_end = maxClipping
                         if prefs().volume_clipping:
@@ -132,7 +131,6 @@ def get_outliner_objects():
             return region
 
     # we will override context to be able to access selected_ids
-
     # assuming that context is defined
     outliner_area = get_outliner_area(bpy.context)
     outliner_window = get_outliner_window(outliner_area)
@@ -142,56 +140,61 @@ def get_outliner_objects():
     context_overridden['area'] = outliner_area
     context_overridden['region'] = outliner_window
 
-    # @brockmann's solution can then be used to output a nice dictionary
-    print("OVERRIDE: ", context_overridden['active_object'])       
+    # output a dictionary
+    #print("all: ", context_overridden)  
+    #print("OVERRIDE: ", context_overridden['active_object'],  bpy.context.selected_objects)   
     return context_overridden['active_object']   
 
 
 
-def calculate_clipping(distance=0):  
+def get_clipping(view_distance):  
+
+    selected_obj = bpy.context.selected_objects
+    active_obj = bpy.context.active_object
+    if prefs().debug_profiling:
+        print("active object 0: ", active_obj.name, 
+              "\nselected objects 0: ", selected_obj)
+
+    # there are scenarios where objects are not selectable but can be marked 
+    # as active objects in the outliner
+    if selected_obj and active_obj in selected_obj:
+        obj_dimension = [obj.location for obj in selected_obj] 
+        obj_location = [obj.dimensions for obj in selected_obj]         
+    else:             
+        obj_dimension = [active_obj.dimensions]
+        obj_location = [active_obj.location] 
+    
+    return calculate_clipping(view_distance, obj_dimension, obj_location)
+    
+    
+def calculate_clipping(view_distance, obj_dimension, obj_location): 
+
     if prefs().debug_profiling:
         start_time = profiler(time.perf_counter(), "Start calculate_clipping") 
+    # when having multiple selected obejcts and they are far appart the distance between them needs to be considered
+    # to adjust the max clipping distance
     
-    outliner_object = get_outliner_objects()
-    print("ALTERNATE method: ", outliner_object.name, bpy.context.active_object.name, bpy.context.selected_objects)
+    selected_objects_proximity = (max(obj_location) - min(obj_location)).length  
+    if prefs().debug_profiling:
+        print(selected_objects_proximity, max(obj_location), min(obj_location))
 
-    if bpy.context.selected_objects:
-        objLocation = [obj.location for obj in bpy.context.selected_objects] 
-        objDimension = [obj.dimensions for obj in bpy.context.selected_objects]        
-        if prefs().debug_profiling:
-            start_time = profiler(start_time, "transforms")
-
-        minClipping = (min_list_value(objDimension) + distance) /100 / prefs().clip_start_factor
-        if prefs().debug_profiling:
-            start_time = profiler(start_time, "minClipping")
-
-        # when having multiple selected obejcts and they are far appart the distance between them needs to be considered
-        # to adjust the max clipping distance
-        #selected_objects_proximity = object_distance(min(objLocation), max(objLocation))
-        selected_objects_proximity = (max(objLocation) - min(objLocation)).length
-        
-        maxClipping = (max(max(objDimension)) + selected_objects_proximity + distance) * prefs().clip_end_factor        
-        if prefs().debug_profiling:
-            start_time = profiler(start_time, "maxClipping")
-        
-        # fallback if objects without dimensions are selected
-        if not minClipping:
-            minClipping = distance / prefs().clip_start_factor * 0.1
-        if not maxClipping:
-            maxClipping = distance * prefs().clip_end_factor
-        
-        if prefs().debug_profiling:
-            print("\nmin-max: ", minClipping, "<<=====>>", maxClipping)
-            print("view distance: ", distance)
-            print("selected_objects_proximity: ", selected_objects_proximity, end='\n')   
-
-        return minClipping, maxClipping   
-    else:
-        return 0.1*distance, 100*distance
+    # TODO: "not min/max - clipping" fallback if objects without dimensions are selected  # -->  check if object has dimentions to improve calculation
+    maxClipping = (max(max(obj_dimension)) + selected_objects_proximity + view_distance) * prefs().clip_end_factor 
+    if not maxClipping:
+        maxClipping = view_distance * prefs().clip_end_factor   
     
-    """ elif not bpy.context.selected_objects and bpy.context.active_object:
-        print("ALTERNATE method 22: ", bpy.context.active_object, bpy.context.selected_objects)
-        return  """
+    minClipping = (min_list_value(obj_dimension) + view_distance) /100 / prefs().clip_start_factor
+    if not minClipping:
+        minClipping = view_distance / prefs().clip_start_factor * 0.1    
+        
+    if prefs().debug_profiling:
+        print("\nmin-max: ", minClipping, "<<=====>>", maxClipping)
+        print("view distance: ", view_distance)
+        print("selected_objects_proximity: ", selected_objects_proximity, end='\n')   
+    
+    if prefs().debug_profiling:
+        start_time = profiler(start_time, "calculate_clipping") 
+    return minClipping, maxClipping
 
 
 
