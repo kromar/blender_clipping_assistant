@@ -29,7 +29,7 @@ bl_info = {
     "name": "Clipping Assistant",
     "description": "Assistant to set Viewport and Camera Clipping Distance",
     "author": "Daniel Grauer",
-    "version": (2, 0, 8),
+    "version": (2, 1, 0),
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
@@ -85,13 +85,13 @@ def apply_clipping():
                             #set viewport clipping
                             if prefs().debug_profiling:
                                 start_time = profiler(start_time, "apply_clipping") 
-                            print("\n\nDISTANCE: ", view_distance)
-                            minClipping, maxClipping = get_clipping(view_distance)                                
+                                print("\n\nDISTANCE: ", view_distance)
+                            minClipping, maxClipping = calculate_clipping(view_distance)                               
                         else:
                             minClipping, maxClipping = prefs().clip_start_distance, prefs().clip_end_distance   
                         if prefs().debug_profiling:
-                            start_time = profiler(start_time, "get_clipping") 
-                        #print("\nset clipping: ", minClipping, maxClipping)
+                            start_time = profiler(start_time, "calculate_clipping") 
+                            print("\nset clipping: ", minClipping, maxClipping)
 
                         space.clip_start = minClipping
                         space.clip_end = maxClipping
@@ -146,7 +146,6 @@ def get_outliner_objects():
     return context_overridden['active_object']   
 
 
-
 def get_clipping(view_distance):  
 
     selected_obj = bpy.context.selected_objects
@@ -157,18 +156,18 @@ def get_clipping(view_distance):
 
     # there are scenarios where objects are not selectable but can be marked 
     # as active objects in the outliner
-    if selected_obj and active_obj in selected_obj:
-        obj_dimension = [obj.location for obj in selected_obj] 
-        obj_location = [obj.dimensions for obj in selected_obj]         
-    else:             
+    if len(selected_obj)>1 and (active_obj in selected_obj):
+        obj_dimension = [obj.dimensions for obj in selected_obj] 
+        obj_location = [obj.location for obj in selected_obj]         
+    else:         
         obj_dimension = [active_obj.dimensions]
         obj_location = [active_obj.location] 
     
-    return calculate_clipping(view_distance, obj_dimension, obj_location)
+    return obj_dimension, obj_location
     
     
-def calculate_clipping(view_distance, obj_dimension, obj_location): 
-
+def calculate_clipping(view_distance): 
+    obj_dimension, obj_location = get_clipping(view_distance)
     if prefs().debug_profiling:
         start_time = profiler(time.perf_counter(), "Start calculate_clipping") 
     # when having multiple selected obejcts and they are far appart the distance between them needs to be considered
@@ -179,18 +178,28 @@ def calculate_clipping(view_distance, obj_dimension, obj_location):
         print(selected_objects_proximity, max(obj_location), min(obj_location))
 
     # TODO: "not min/max - clipping" fallback if objects without dimensions are selected  # -->  check if object has dimentions to improve calculation
-    maxClipping = (max(max(obj_dimension)) + selected_objects_proximity + view_distance) * prefs().clip_end_factor 
+    maxClipping = ((max(max(obj_dimension)) + (view_distance * prefs().clip_end_factor)) + selected_objects_proximity) 
     if not maxClipping:
         maxClipping = view_distance * prefs().clip_end_factor   
+        print("maxClipping fallback: ", maxClipping)
     
-    minClipping = (min_list_value(obj_dimension) + view_distance) /100 / prefs().clip_start_factor
+    minClipping = ((min_list_value(obj_dimension) * view_distance)) * prefs().clip_start_factor
     if not minClipping:
-        minClipping = view_distance / prefs().clip_start_factor * 0.1    
+        minClipping = view_distance / prefs().clip_start_factor * 0.1  
+        print("minClipping fallback: ", minClipping)
+           
         
-    if prefs().debug_profiling:
-        print("\nmin-max: ", minClipping, "<<=====>>", maxClipping)
-        print("view distance: ", view_distance)
-        print("selected_objects_proximity: ", selected_objects_proximity, end='\n')   
+    if  prefs().debug_profiling:
+        #print("\n\nobj_location: ", obj_location)     
+           
+        #print("\n\nmin_list_value(obj_dimension): ", min_list_value(obj_dimension)) 
+        #print("view distance: ", view_distance)   
+        #print("min-max: ", minClipping, "<<=====>>", maxClipping)
+
+        print("\n(max(max(obj_dimension): ", max(max(obj_dimension)))     
+        print("view_distance: ", view_distance)   
+        print("selected_objects_proximity: ", selected_objects_proximity) 
+        print("min-max: ", minClipping, "<<=====>>", maxClipping)  
     
     if prefs().debug_profiling:
         start_time = profiler(start_time, "calculate_clipping") 
@@ -265,21 +274,22 @@ class ClippingAssistant_Preferences(AddonPreferences):
         default=True)
 
     clip_start_factor: FloatProperty(
-        name="Clip Start Divider",
+        name="Clip Start Multiplier",
         description="Value to calculate Clip Start, the higher the value the smaller the Clip Start Distance",
-        default=0.05,
+        default=1,
         min = 0.001,
-        soft_min = 0.01,
-        soft_max=0.1,
+        soft_min = 1,
+        soft_max=10,
         step=1,
         subtype='FACTOR') 
 
     clip_end_factor: FloatProperty(
         name="Clip End Multiplier",
         description="Value to calculate Clip End, the higher the value the bigger the Clip End Distance",
-        default=2,
-        min = 0.01,
-        soft_max=4,
+        default=10,
+        min = 0.001,
+        soft_min = 1,
+        soft_max=100,
         step=1,
         subtype='FACTOR')
 
@@ -316,7 +326,7 @@ class ClippingAssistant_Preferences(AddonPreferences):
     debug_profiling: BoolProperty(
         name="Debug: Profiling",
         description="enable some performance output for debuggung",
-        default=False)
+        default=False) #default=False
     
 
     def draw(self, context):
