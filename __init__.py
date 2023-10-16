@@ -29,7 +29,7 @@ bl_info = {
     "name": "Clipping Assistant",
     "description": "Assistant to set Viewport and Camera Clipping Distance",
     "author": "Daniel Grauer",
-    "version": (2, 1, 0),
+    "version": (2, 1, 1),
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
@@ -215,7 +215,13 @@ class ClippingAssistant(Operator):
     
 
     ob_type = ['MESH', 'CURVE', 'SURFACE', 'META', 'FONT', 'HAIR', 
-                'POINTCLOUD', 'VOLUME', 'GPENCIL', 'ARMATURE', 'LATTICE']  
+                'POINTCLOUD', 'VOLUME', 'GPENCIL', 'ARMATURE', 'LATTICE']
+    
+    trigger_events = ['WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'TRACKPADZOOM', 
+                      'TRACKPADPAN', 'INBETWEEN_MOUSEMOVE', 'MIDDLEMOUSE']
+    
+    right_click_select_events = ['LEFTMOUSE', 'RIGHTMOUSE']    
+
     @classmethod
     def poll(cls, context):      
         return context.selected_objects or context.active_object
@@ -225,12 +231,25 @@ class ClippingAssistant(Operator):
         wm = context.window_manager   
         if clipping_active:
             print("Clipping Assistant: Disable Auto Update")
-            clipping_active = False                     
+            clipping_active = False    
             return {'FINISHED'}
         else:
             print("Clipping Assistant: Add Auto Update")
             wm.modal_handler_add(self)
             clipping_active = True
+            # detect the mouse button used for selection, this causes conflicts in certain scenarios when interacting with gizmos with LMB  
+            #   0 == LMB, 1 == RMB          
+            active_keymap = bpy.context.preferences.keymap.active_keyconfig
+            right_click_select = bpy.context.window_manager.keyconfigs[active_keymap].preferences['select_mouse']
+            intersection = set(self.right_click_select_events).intersection(self.trigger_events)            
+            if intersection: 
+                if right_click_select == 0:                    
+                    #print("intersection: ", intersection) 
+                    self.trigger_events = set(self.trigger_events) - set(intersection)
+            else:
+                if right_click_select == 1:
+                    self.trigger_events += self.right_click_select_events
+            #print("trigger events: ", self.trigger_events)
             return {'RUNNING_MODAL'}
 
     def cancel(self, context) -> None:
@@ -241,7 +260,9 @@ class ClippingAssistant(Operator):
     def modal(self, context, event): 
         global clipping_active
         if clipping_active:
-            if event.type in {'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'TRACKPADZOOM', 'LEFTMOUSE', 'MIDDLEMOUSE', 'RIGHTMOUSE'} or event.ctrl or event.shift or event.alt:                
+            if (event.type in self.trigger_events 
+            or event.ctrl or event.shift or event.alt):  
+                #print(event.type)    
                 for obj in context.selected_objects:
                     if obj.type in self.ob_type:  
                         apply_clipping()   
