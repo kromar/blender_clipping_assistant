@@ -81,34 +81,37 @@ def apply_clipping():
                         if prefs().debug_profiling:
                             start_time = profiler(start_time, "space.type in")                     
                         
+
+                        # Viewport clipping
                         if prefs().auto_clipping: 
-                            #set viewport clipping
                             if prefs().debug_profiling:
                                 start_time = profiler(start_time, "apply_clipping") 
                                 print("\n\nDISTANCE: ", view_distance)
                             minClipping, maxClipping = calculate_clipping(view_distance)                               
                         else:
-                            minClipping, maxClipping = prefs().clip_start_distance, prefs().clip_end_distance   
+                            minClipping, maxClipping = prefs().clip_start_distance, prefs().clip_end_distance                           
                         if prefs().debug_profiling:
                             start_time = profiler(start_time, "calculate_clipping") 
                             print("\nset clipping: ", minClipping, maxClipping)
-
-                        space.clip_start = minClipping
+                        
+                        space.clip_start = minClipping #TODO: why do we lose the gizmo when running this line?
                         space.clip_end = maxClipping
+                        # Volumetric clipping
                         if prefs().volume_clipping:
                             bpy.context.scene.eevee.volumetric_start = minClipping
                             bpy.context.scene.eevee.volumetric_end = maxClipping
                         
                         if prefs().debug_profiling:
                             start_time = profiler(start_time, "clip") 
-                        #set camera clipping                            
+                        
+                        # Camera clipping                            
                         if space.camera and prefs().camera_clipping:
                             #print("camera: ", space.camera.name)
                             bpy.data.cameras[space.camera.name].clip_start = minClipping
                             bpy.data.cameras[space.camera.name].clip_end = maxClipping
                         
                         if prefs().debug_profiling:
-                            print("="*80)
+                            print("="*80) 
     
     if prefs().debug_profiling:
         total_time = profiler(total_time, "total time") 
@@ -211,15 +214,10 @@ class ClippingAssistant(Operator):
     bl_idname = "scene.clipping_assistant"
     bl_label = "Toggle Automatic Clipping"
     bl_description = "Start and End Clipping Distance of Camera(s)"
-    bl_options = {"REGISTER", "UNDO"}
-    
+    bl_options = {"REGISTER", "UNDO"}   
 
-    ob_type = ['MESH', 'CURVE', 'SURFACE', 'META', 'FONT', 'HAIR', 
-                'POINTCLOUD', 'VOLUME', 'GPENCIL', 'ARMATURE', 'LATTICE']
-    
-    trigger_events = ['WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'TRACKPADZOOM', 
-                      'TRACKPADPAN', 'INBETWEEN_MOUSEMOVE', 'MIDDLEMOUSE']
-    
+    ob_type = ['MESH', 'CURVE', 'SURFACE', 'META', 'FONT', 'HAIR', 'POINTCLOUD', 'VOLUME', 'GPENCIL', 'ARMATURE', 'LATTICE']    
+    trigger_events = ['WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'TRACKPADZOOM', 'TRACKPADPAN', 'INBETWEEN_MOUSEMOVE', 'MIDDLEMOUSE']    
     right_click_select_events = ['LEFTMOUSE', 'RIGHTMOUSE']    
 
     @classmethod
@@ -240,16 +238,21 @@ class ClippingAssistant(Operator):
             # detect the mouse button used for selection, this causes conflicts in certain scenarios when interacting with gizmos with LMB  
             #   0 == LMB, 1 == RMB          
             active_keymap = bpy.context.preferences.keymap.active_keyconfig
-            right_click_select = bpy.context.window_manager.keyconfigs[active_keymap].preferences['select_mouse']
-            intersection = set(self.right_click_select_events).intersection(self.trigger_events)            
-            if intersection: 
-                if right_click_select == 0:                    
-                    #print("intersection: ", intersection) 
-                    self.trigger_events = set(self.trigger_events) - set(intersection)
-            else:
-                if right_click_select == 1:
-                    self.trigger_events += self.right_click_select_events
-            #print("trigger events: ", self.trigger_events)
+            
+            try: # some keymaps do not contain the select_mouse property. This avoids errors with those keymaps
+                right_click_select = bpy.context.window_manager.keyconfigs[active_keymap].preferences['select_mouse']
+                intersection = set(self.right_click_select_events).intersection(self.trigger_events)            
+                if intersection: 
+                    if right_click_select == 0:                    
+                        #print("intersection: ", intersection) 
+                        self.trigger_events = set(self.trigger_events) - set(intersection)
+                else:
+                    if right_click_select == 1:
+                        self.trigger_events += self.right_click_select_events
+                #print("trigger events: ", self.trigger_events)
+            except:
+                pass
+                
             return {'RUNNING_MODAL'}
 
     def cancel(self, context) -> None:
@@ -260,14 +263,14 @@ class ClippingAssistant(Operator):
     def modal(self, context, event): 
         global clipping_active
         if clipping_active:
-            if (event.type in self.trigger_events 
+            if (event.type in self.trigger_events
             or event.ctrl or event.shift or event.alt):  
                 #print(event.type)    
                 for obj in context.selected_objects:
                     if obj.type in self.ob_type:  
-                        apply_clipping()   
+                        apply_clipping() 
                 if bpy.context.active_object:
-                    apply_clipping()  
+                    apply_clipping()
             return {'PASS_THROUGH'}
         else:
             print("Clipping Assistant: Stop auto update")  
