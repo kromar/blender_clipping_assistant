@@ -270,7 +270,8 @@ class ClippingAssistant(Operator):
                     if obj.type in self.ob_type:  
                         apply_clipping() 
                 if bpy.context.active_object:
-                    apply_clipping()
+                    if bpy.context.active_object.type in self.ob_type:
+                        apply_clipping()
             return {'PASS_THROUGH'}
         else:
             print("Clipping Assistant: Stop auto update")  
@@ -300,7 +301,7 @@ class ClippingAssistant_Preferences(AddonPreferences):
     clip_start_factor: FloatProperty(
         name="Clip Start Multiplier",
         description="Value to calculate Clip Start, the higher the value the smaller the Clip Start Distance",
-        default=1,
+        default=0.01,
         min = 0.001,
         soft_min = 1,
         soft_max=10,
