@@ -29,11 +29,11 @@ bl_info = {
     "name": "Clipping Assistant",
     "description": "Assistant to set Viewport and Camera Clipping Distance",
     "author": "Daniel Grauer",
-    "version": (2, 1, 1),
+    "version": (2, 1, 2),
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
-    "wiki_url": "https://github.com/kromar/blender_clipping_assistant",
+    "doc_url": "https://blendermarket.com/products/clipping-assistant/docs",
     "tracker_url": "https://github.com/kromar/blender_clipping_assistant/issues/new",
 }
 
@@ -294,9 +294,24 @@ class ClippingAssistant_Preferences(AddonPreferences):
     bl_idname = __package__
 
     auto_clipping: BoolProperty(
-        name="Auto Clipping",
+        name="Dinamic Clipping",
         description="Adjust clipping distance automaticly on selected context",
+        default=True)    
+    
+    viewport_clipping: BoolProperty(
+        name="Viewport Clipping",
+        description="When enabled the Viewport clipping distance is adjusted",
         default=True)
+    
+    camera_clipping: BoolProperty(
+        name="Active Camera Clipping",
+        description="When enabled the Active Camera clipping distance is adjusted",
+        default=False)
+
+    volume_clipping: BoolProperty(
+        name="Volumetrics Clipping",
+        description="When enabled the Volumetrics clipping distance is adjusted",
+        default=False)
 
     clip_start_factor: FloatProperty(
         name="Clip Start Multiplier",
@@ -337,37 +352,65 @@ class ClippingAssistant_Preferences(AddonPreferences):
         soft_max=200,
         step=1,
         subtype='DISTANCE') 
-
-    camera_clipping: BoolProperty(
-        name="Apply Clipping To Active Camera",
-        description="When enabled the clipping Distance of the Active Camera is adjusted as well as the Viewport Clip Distance",
-        default=False)
-
-    volume_clipping: BoolProperty(
-        name="Apply Clipping To Volumetrics",
-        description="Adapt Clipping distances of volumetric effects",
-        default=True)
         
     debug_profiling: BoolProperty(
-        name="Debug: Profiling",
+        name="Debug",
         description="enable some performance output for debuggung",
         default=False) #default=False
     
 
     def draw(self, context):
         layout = self.layout
-        layout.use_property_split = False
-        layout.prop(self, 'camera_clipping') 
-        layout.prop(self, 'volume_clipping') 
+        #layout.use_property_split = False
         
-        layout.prop(self, 'auto_clipping') 
         column = layout.box()
+        column.use_property_split = False
+        column.prop(self, 'auto_clipping') 
+        column.use_property_split = True
         if self.auto_clipping:
             column.prop(self, 'clip_start_factor', slider=True)
             column.prop(self, 'clip_end_factor', slider=True)
         else:
             column.prop(self, 'clip_start_distance', slider=True)
             column.prop(self, 'clip_end_distance', slider=True)
+
+            
+        column = layout.box()
+        column.use_property_split = False
+        column.prop(self, 'viewport_clipping') 
+        column.use_property_split = True
+        if self.auto_clipping:
+            column.prop(self, 'clip_start_factor', slider=True)
+            column.prop(self, 'clip_end_factor', slider=True)
+        else:
+            column.prop(self, 'clip_start_distance', slider=True)
+            column.prop(self, 'clip_end_distance', slider=True)
+
+
+        column = layout.box()
+        column.use_property_split = False
+        column.prop(self, 'camera_clipping') 
+        column.use_property_split = True
+        if self.auto_clipping:
+            column.prop(self, 'clip_start_factor', slider=True)
+            column.prop(self, 'clip_end_factor', slider=True)
+        else:
+            column.prop(self, 'clip_start_distance', slider=True)
+            column.prop(self, 'clip_end_distance', slider=True)
+
+        
+        column = layout.box()
+        column.use_property_split = False
+        column.prop(self, 'volume_clipping') 
+        column.use_property_split = True
+        if self.auto_clipping:
+            column.prop(self, 'clip_start_factor', slider=True)
+            column.prop(self, 'clip_end_factor', slider=True)
+        else:
+            column.prop(self, 'clip_start_distance', slider=True)
+            column.prop(self, 'clip_end_distance', slider=True)
+
+
 
         layout.prop(self, 'debug_profiling') 
 
