@@ -181,14 +181,20 @@ def calculate_clipping(view_distance):
         print(selected_objects_proximity, max(obj_location), min(obj_location))
 
     # TODO: "not min/max - clipping" fallback if objects without dimensions are selected  # -->  check if object has dimentions to improve calculation
-    maxClipping = ((max(max(obj_dimension)) + (view_distance * prefs().clip_end_factor)) + selected_objects_proximity) 
+    if prefs().use_object_scale:
+        maxClipping = ((max(max(obj_dimension)) + (view_distance * prefs().clip_end_factor)) + selected_objects_proximity)     
+        minClipping = ((min_list_value(obj_dimension) * view_distance)) * prefs().clip_start_factor  
+    else:
+        maxClipping = view_distance * prefs().clip_end_factor + selected_objects_proximity
+        minClipping = view_distance * prefs().clip_start_factor  
+
+
     if not maxClipping:
         maxClipping = view_distance * prefs().clip_end_factor   
         print("maxClipping fallback: ", maxClipping)
-    
-    minClipping = ((min_list_value(obj_dimension) * view_distance)) * prefs().clip_start_factor
+      
     if not minClipping:
-        minClipping = view_distance / prefs().clip_start_factor * 0.1  
+        minClipping = view_distance * prefs().clip_start_factor
         print("minClipping fallback: ", minClipping)
            
         
@@ -296,7 +302,12 @@ class ClippingAssistant_Preferences(AddonPreferences):
     auto_clipping: BoolProperty(
         name="Auto Clipping",
         description="Adjust clipping distance automaticly on selected context",
-        default=True)
+        default=True) #dfault: True
+    
+    use_object_scale: BoolProperty(
+        name="Use Object Scale",
+        description="Use the object scale in the clipping distance calculation",
+        default=False) #dfault: False
 
     clip_start_factor: FloatProperty(
         name="Clip Start Multiplier",
@@ -356,7 +367,7 @@ class ClippingAssistant_Preferences(AddonPreferences):
 
     def draw(self, context):
         layout = self.layout
-        layout.use_property_split = False
+        layout.use_property_split = False        
         layout.prop(self, 'camera_clipping') 
         layout.prop(self, 'volume_clipping') 
         
@@ -370,6 +381,8 @@ class ClippingAssistant_Preferences(AddonPreferences):
             column.prop(self, 'clip_end_distance', slider=True)
 
         layout.prop(self, 'debug_profiling') 
+        if self.debug_profiling:
+            layout.prop(self, 'use_object_scale') 
 
 
 def profiler(start_time=False, string=None): 
