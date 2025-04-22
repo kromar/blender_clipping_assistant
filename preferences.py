@@ -1,0 +1,110 @@
+# ##### BEGIN GPL LICENSE BLOCK #####
+#
+#  This program is free software; you can redistribute it and/or
+#  modify it under the terms of the GNU General Public License
+#  as published by the Free Software Foundation; either version 2
+#  of the License, or (at your option) any later version.
+#
+#  This program is distributed in the hope that it will be useful,
+#  but WITHOUT ANY WARRANTY; without even the implied warranty of
+#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#  GNU General Public License for more details.
+#
+#  You should have received a copy of the GNU General Public License
+#  along with this program; if not, write to the Free Software Foundation,
+#  Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
+#
+# ##### END GPL LICENSE BLOCK #####
+
+from bpy.types import AddonPreferences
+from bpy.props import BoolProperty, IntProperty, FloatProperty, EnumProperty, StringProperty, PointerProperty, CollectionProperty
+
+
+class ClippingAssistant_Preferences(AddonPreferences):
+    bl_idname = __package__
+
+    auto_clipping: BoolProperty(
+        name="Auto Clipping",
+        description="Adjust clipping distance automaticly on selected context",
+        default=True) #dfault: True
+    
+    use_object_scale: BoolProperty(
+        name="Use Object Scale",
+        description="Use the object scale in the clipping distance calculation",
+        default=False) #dfault: False
+
+    clip_start_factor: FloatProperty(
+        name="Clip Start Multiplier",
+        description="Value to calculate Clip Start, the higher the value the smaller the Clip Start Distance",
+        default=0.01,
+        min = 0.001,
+        soft_min = 1,
+        soft_max=10,
+        step=1,
+        subtype='FACTOR') 
+
+    clip_end_factor: FloatProperty(
+        name="Clip End Multiplier",
+        description="Value to calculate Clip End, the higher the value the bigger the Clip End Distance",
+        default=10,
+        min = 0.001,
+        soft_min = 1,
+        soft_max=100,
+        step=1,
+        subtype='FACTOR')
+
+    clip_start_distance: FloatProperty(
+        name="Clip Start Distance",
+        description="Set the Clip Start distance",
+        default=0.001,
+        min=0.000001, 
+        soft_min = 0.0001,
+        soft_max=0.01,
+        step=1,
+        subtype='DISTANCE') 
+
+    clip_end_distance: FloatProperty(
+        name="Clip End Distance",
+        description="Set the Clip End distance",
+        default=100,
+        min = 0.01,
+        soft_min = 0.01,
+        soft_max=200,
+        step=1,
+        subtype='DISTANCE') 
+
+    camera_clipping: BoolProperty(
+        name="Apply Clipping To Active Camera",
+        description="When enabled the clipping Distance of the Active Camera is adjusted as well as the Viewport Clip Distance",
+        default=False)
+
+    volume_clipping: BoolProperty(
+        name="Apply Clipping To Volumetrics",
+        description="Adapt Clipping distances of volumetric effects",
+        default=True)
+        
+    debug_profiling: BoolProperty(
+        name="Debug: Profiling",
+        description="enable some performance output for debuggung",
+        default=True) #default=False
+    
+
+    def draw(self, context):
+        layout = self.layout
+        layout.use_property_split = False        
+        layout.prop(self, 'camera_clipping') 
+        layout.prop(self, 'volume_clipping') 
+        
+        layout.prop(self, 'auto_clipping') 
+        column = layout.box()
+        if self.auto_clipping:
+            column.prop(self, 'clip_start_factor', slider=True)
+            column.prop(self, 'clip_end_factor', slider=True)
+        else:
+            column.prop(self, 'clip_start_distance', slider=True)
+            column.prop(self, 'clip_end_distance', slider=True)
+
+        layout.prop(self, 'debug_profiling') 
+        if self.debug_profiling:
+            layout.prop(self, 'use_object_scale') 
+
