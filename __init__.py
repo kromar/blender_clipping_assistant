@@ -93,7 +93,7 @@ def apply_clipping():
                             minClipping, maxClipping = prefs().clip_start_distance, prefs().clip_end_distance                           
                         if prefs().debug_profiling:
                             start_time = profiler(start_time, "calculate_clipping") 
-                            print("\nset clipping: ", minClipping, maxClipping)
+                            print("\nset clipping: {:.4f} {:.4f}".format(minClipping, maxClipping))
                         
                         space.clip_start = minClipping #TODO: why do we lose the gizmo when running this line?
                         space.clip_end = maxClipping
@@ -159,7 +159,7 @@ def calculate_clipping(view_distance):
     
     selected_objects_proximity = (max(obj_location) - min(obj_location)).length  
     if prefs().debug_profiling:
-        print('Objects proximity: ', selected_objects_proximity,'\n__ Max: ',  max(obj_location), ' Min: ', min(obj_location))
+        print('Objects proximity: ', selected_objects_proximity,'\n__ Max: ',  max(obj_location).length, ' Min: ', min(obj_location).length)
 
     # TODO: "not min/max - clipping" fallback if objects without dimensions are selected  # -->  check if object has dimentions to improve calculation
     if prefs().use_object_scale:
@@ -218,10 +218,13 @@ class ClippingAssistant(Operator):
 
     ob_type = ['MESH', 'CURVE', 'SURFACE', 'META', 'FONT', 'HAIR', 'POINTCLOUD', 'VOLUME', 'GPENCIL', 'ARMATURE', 'LATTICE']    
     trigger_event_types = ['BUTTON4MOUSE', 'BUTTON5MOUSE', 'BUTTON6MOUSE', 'BUTTON7MOUSE',
-                            'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'MIDDLEMOUSE', 'WHEELINMOUSE' , 'WHEELOUTMOUSE','SELECTMOUSE',
-                           'TRACKPADZOOM', 'TRACKPADPAN',  
-                           'MOUSEROTATE', 'WHEELINMOUSE', 'WHEELOUTMOUSE',
+                            'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'MIDDLEMOUSE',
+                           'TRACKPADZOOM', 'TRACKPADPAN', 'MOUSEROTATE', 
+                           #'INBETWEEN_MOUSEMOVE', 
+                           'SELECTMOUSE', 
+                           #'MOUSEMOVE',
                            ]    
+    key_trigger_event_types = ['LEFTCTRL', 'RIGHTCTRL', 'LEFTSHIFT', 'RIGHTSHIFT', 'LEFTALT', 'RIGHTALT']   
     right_click_event_types = ['LEFTMOUSE', 'RIGHTMOUSE']    
 
     @classmethod
@@ -273,19 +276,20 @@ class ClippingAssistant(Operator):
 
     def modal(self, context, event): 
         global clipping_active
+
         if clipping_active:
             if (event.type in self.trigger_event_types
-            or event.ctrl or event.shift or event.alt):  
-                """ selected_objects = [obj for obj in context.selected_objects if obj.type in self.ob_type]
+                or event.ctrl or event.shift or event.alt):  
+                selected_objects = [obj for obj in context.selected_objects if obj.type in self.ob_type]
                 if selected_objects or (bpy.context.active_object and bpy.context.active_object.type in self.ob_type):
-                    print('Event type:', event.type)   
-                    print("Clipping Assistant: Auto Update applied to batch")    """
-                apply_clipping()  
+                    print("Clipping Assistant: Auto Update applied to batch")   
+                    print('Event type:', event.type, event.value)   
+                    apply_clipping()  
 
             return {'PASS_THROUGH'}
         else:
             print("Clipping Assistant: Stop auto update")  
-            clipping_active = False                
+            clipping_active = False           
             return {'FINISHED'}
         
 
@@ -306,17 +310,45 @@ def draw_button(self, context):
     if context.region.alignment == 'RIGHT':
         layout = self.layout
         row = layout.row(align=True)   
+        row.operator(
+            operator="scene.clipping_assistant", 
+            text="", 
+            icon='VIEW_CAMERA', 
+            emboss=True, 
+            depress=clipping_active
+        )
+        
+        # Display the clip start and end values
         if clipping_active:
-            row.operator(operator="scene.clipping_assistant", text="", icon='VIEW_CAMERA', emboss=True, depress=True)
-        else:
-            row.operator(operator="scene.clipping_assistant", text="", icon='VIEW_CAMERA', emboss=True, depress=False)
-          
+            try:
+                scene = bpy.context.scene
+                unit_settings = scene.unit_settings
+                scale_length = scene.unit_settings.scale_length
 
+                if unit_settings.system == 'METRIC':
+                    scale_length *= 100.0
+                elif unit_settings.system == 'IMPERIAL':
+                    scale_length *= 3.28084
+
+                clip_start_value = None
+                clip_end_value = None
+                for area in context.screen.areas:
+                    if area.type == 'VIEW_3D':
+                        space = area.spaces.active
+                        clip_start_value = space.clip_start * scale_length
+                        clip_end_value = space.clip_end * scale_length
+                
+                row = layout.row(align=True)
+                row.label(text=f"{clip_start_value:.2f}")
+                row.label(text=f"{clip_end_value:.2f}")
+
+            except (KeyError, IndexError, AttributeError):
+                layout.row(align=True).label(text="Clip: N/A")
 
 classes = (
     ClippingAssistant,
     preferences.ClippingAssistant_Preferences,
-    )
+)
 
 def register():   
     [bpy.utils.register_class(c) for c in classes]  
