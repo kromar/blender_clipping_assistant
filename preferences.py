@@ -82,17 +82,17 @@ class ClippingAssistant_Preferences(AddonPreferences):
         name="Apply Clipping To Volumetrics",
         description="Adapt Clipping distances of volumetric effects",
         default=True)
+    
+    debug_output: BoolProperty(
+        name="Debug: Output",
+        description="Enable some debug output",
+        default=False) #default=False
         
     debug_profiling: BoolProperty(
         name="Debug: Profiling",
         description="Enable some performance output",
         default=False) #default=False
     
-    debug_output: BoolProperty(
-        name="Debug: Output",
-        description="Enable some debug output",
-        default=True) #default=False
-
 
     def draw(self, context):
         layout = self.layout

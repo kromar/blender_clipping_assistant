@@ -58,7 +58,7 @@ def min_list_value(input_list):
         so 0 values are ignored to avoid invalid minimum object sizes.
     '''
     filtered_list = [value for value in input_list[0] if value > 0]
-    if not filtered_list:
+    if filtered_list is None:
         return None, None  # Handle case where all values are zero
     min_value = min(filtered_list)
     min_index = input_list[0].index(min_value)
@@ -76,7 +76,7 @@ def apply_clipping(context):
     # Access the active 3D view directly
     #context = bpy.context
     area = next((area for area in context.screen.areas if area.type == 'VIEW_3D'), None)
-    if not area:
+    if area is None:
         return
 
 
@@ -134,7 +134,6 @@ def apply_clipping(context):
     if prefs().debug_profiling:
         calc_time = profiler(calc_time, "Camera Clipping Applied")
 
-
     if prefs().debug_profiling:
         print('-' * 40)
         total_time = profiler(total_time, "Total clipping time")
@@ -187,7 +186,7 @@ def calculate_clipping(context, view_distance):
     if prefs().debug_output:        
         print('Objects proximity: {:.4f}'.format(selected_objects_proximity), 
               '\n  Max: {:.4f}'.format(max(obj_location).length), 
-              ' \n  Min: {:.4f}'.format(min(obj_location).length))
+              '\n  Min: {:.4f}'.format(min(obj_location).length))
 
     if prefs().debug_profiling:
         start_time = profiler(start_time, "Calculated selected objects proximity")
@@ -204,13 +203,16 @@ def calculate_clipping(context, view_distance):
     if prefs().debug_profiling:
         start_time = profiler(start_time, "Calculated min and max clipping distances")
 
-    if not maxClipping:
-        maxClipping = view_distance * prefs().clip_end_factor   
-        print("maxClipping fallback: ", maxClipping)
-      
-    if not minClipping:
+    # Use fallback values for minClipping and maxClipping only if they are None
+    if maxClipping is None:
+        maxClipping = view_distance * prefs().clip_end_factor
+        if prefs().debug_output:
+            print(f"maxClipping fallback: {maxClipping:.4f}")
+
+    if minClipping is None:
         minClipping = view_distance * prefs().clip_start_factor
-        print("minClipping fallback: ", minClipping)
+        if prefs().debug_output:
+            print(f"minClipping fallback: {minClipping:.4f}")
    
     if prefs().debug_profiling:
         start_time = profiler(start_time, "min and max fallbakcs")
@@ -327,7 +329,7 @@ class ClippingAssistant(Operator):
 
 def profiler(start_time=None, message=None): 
     """Measure and print elapsed time with 4 decimal precision."""
-    if not prefs().debug_profiling:
+    if prefs().debug_profiling is False:
         return start_time  # Skip profiling if debug_profiling is disabled
 
     current_time = time.perf_counter()
@@ -345,18 +347,11 @@ def draw_button(self, context):
     if context.region.alignment == 'RIGHT':
         layout = self.layout
         row = layout.row(align=True)   
-        row.operator(
-            operator="scene.clipping_assistant", 
-            text="", 
-            icon='VIEW_CAMERA', 
-            emboss=True, 
-            depress=clipping_active
-        )
         
         # Display the clip start and end values
         if clipping_active:
             try:
-                scene = bpy.context.scene
+                scene = context.scene
                 unit_settings = scene.unit_settings
                 scale_length = scene.unit_settings.scale_length
 
@@ -374,14 +369,18 @@ def draw_button(self, context):
                         clip_end_value = space.clip_end * scale_length
                 
                 row = layout.row(align=True)
-                row.label(text=f"{clip_start_value:.2f}")
-                row.label(text=f"{clip_end_value:.2f}")
+                row.label(text=f"[{clip_start_value:.2f} | {clip_end_value:.2f}]")
 
             except (KeyError, IndexError, AttributeError):
                 layout.row(align=True).label(text="Clip: N/A")
-
-
-
+                
+        row.operator(
+            operator="scene.clipping_assistant", 
+            text="", 
+            icon='VIEW_CAMERA', 
+            emboss=True, 
+            depress=clipping_active
+        )
 
 
 classes = (
