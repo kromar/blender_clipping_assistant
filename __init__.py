@@ -20,7 +20,7 @@ import bpy
 import numpy
 import time
 from bpy.types import Operator
-from . import preferences
+from . import preferences, gizmo
 
 
 bl_info = {
@@ -387,6 +387,7 @@ def draw_button(self, context):
 classes = (
     ClippingAssistant,
     preferences.ClippingAssistant_Preferences,
+    gizmo.FakeGizmoGroup
 )
 
 
