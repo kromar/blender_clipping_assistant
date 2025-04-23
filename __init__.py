@@ -65,58 +65,80 @@ def min_list_value(input_list):
     return min_index, min_value
 
 
-def apply_clipping():    
+def apply_clipping(context):
     if prefs().debug_profiling:
-        total_time = profiler(time.perf_counter(), "Start Total debug_profiling")
-        start_time = profiler(time.perf_counter(), "Start Object debug_profiling")
-    
-    for window in bpy.context.window_manager.windows:
-        screen = window.screen
-        for area in screen.areas:
-            if area.type in {'VIEW_3D'}:                    
-                view_3d = area.spaces.active.region_3d                    
-                view_distance = view_3d.view_distance
-                #print("area: ", area.type , end='\n')
-                for space in area.spaces:                    
-                    if space.type in {'VIEW_3D'}:
-                        if prefs().debug_profiling:
-                            start_time = profiler(start_time, "space.type in")                     
-                        
+        total_time = profiler(time.perf_counter(), "Start Total Profiling")
+        calc_time = profiler(time.perf_counter(), "Start Profiling")
+        print('-' * 40)
 
-                        # Viewport clipping
-                        if prefs().auto_clipping: 
-                            if prefs().debug_profiling:
-                                start_time = profiler(start_time, "apply_clipping") 
-                                print("\n\nDISTANCE: {:.4f}".format(view_distance))
-                            minClipping, maxClipping = calculate_clipping(view_distance)                               
-                        else:
-                            minClipping, maxClipping = prefs().clip_start_distance, prefs().clip_end_distance                           
-                        if prefs().debug_profiling:
-                            start_time = profiler(start_time, "calculate_clipping") 
-                            print("\nset clipping: {:.4f} {:.4f}".format(minClipping, maxClipping))
-                        
-                        space.clip_start = minClipping #TODO: why do we lose the gizmo when running this line?
-                        space.clip_end = maxClipping
-                        # Volumetric clipping
-                        if prefs().volume_clipping:
-                            bpy.context.scene.eevee.volumetric_start = minClipping
-                            bpy.context.scene.eevee.volumetric_end = maxClipping
-                        
-                        if prefs().debug_profiling:
-                            start_time = profiler(start_time, "clip") 
-                        
-                        # Camera clipping                            
-                        if space.camera and prefs().camera_clipping:
-                            #print("camera: ", space.camera.name)
-                            bpy.data.cameras[space.camera.name].clip_start = minClipping
-                            bpy.data.cameras[space.camera.name].clip_end = maxClipping
-                        
-                        if prefs().debug_profiling:
-                            print("-"*40) 
-    
+    minClipping, maxClipping = None, None
+
+    # Access the active 3D view directly
+    #context = bpy.context
+    area = next((area for area in context.screen.areas if area.type == 'VIEW_3D'), None)
+    if not area:
+        return
+
+
     if prefs().debug_profiling:
-        total_time = profiler(total_time, "Fotal clipping time") 
-        print("="*40)
+        calc_time = profiler(calc_time, "Start Clipping Calculation")
+        
+    space = area.spaces.active
+
+    if prefs().auto_clipping:
+        view_3d = space.region_3d
+        view_distance = view_3d.view_distance
+        if prefs().debug_profiling:
+            calc_time = profiler(calc_time, "view_distance")
+
+        minClipping, maxClipping = calculate_clipping(context, view_distance)
+        if prefs().debug_profiling:
+            calc_time = profiler(calc_time, "auto_clipping")
+    else:
+        minClipping, maxClipping = prefs().clip_start_distance, prefs().clip_end_distance   
+        if prefs().debug_profiling:
+            calc_time = profiler(calc_time, "no auto_clipping")
+
+    if prefs().debug_profiling:
+        calc_time = profiler(calc_time, "End Clipping Calculation")
+
+
+    # Apply viewport clipping
+    space.clip_start = minClipping
+    space.clip_end = maxClipping
+    
+    if prefs().debug_output:
+       print('-' * 40)
+       print(f"Set Viewport Clipping: {minClipping:.4f} <-> {maxClipping:.4f}")
+       print('=' * 40)
+
+    if prefs().debug_profiling:
+        calc_time = profiler(calc_time, "Viewport Clipping Applied")
+
+    # Apply volumetric clipping
+    if prefs().volume_clipping:
+        scene = context.scene
+        scene.eevee.volumetric_start = minClipping
+        scene.eevee.volumetric_end = maxClipping
+
+    if prefs().debug_profiling:
+        calc_time = profiler(calc_time, "Volumetric Clipping Applied")
+
+    # Apply camera clipping
+    if space.camera and prefs().camera_clipping:
+        camera = bpy.data.cameras.get(space.camera.name)
+        if camera:
+            camera.clip_start = minClipping
+            camera.clip_end = maxClipping
+
+    if prefs().debug_profiling:
+        calc_time = profiler(calc_time, "Camera Clipping Applied")
+
+
+    if prefs().debug_profiling:
+        print('-' * 40)
+        total_time = profiler(total_time, "Total clipping time")
+        print("=" * 40)
         
 
 def get_outliner_objects():
@@ -132,36 +154,46 @@ def get_outliner_objects():
     return None
 
 
-def get_clipping(view_distance):  
-    selected_obj = bpy.context.selected_objects
-    active_obj = bpy.context.active_object
+def get_clipping(context):  
+    selected_objects = context.selected_objects
+    active_object = context.active_object
 
-    if prefs().debug_profiling:
-        print(f"Active object: {active_obj.name if active_obj else 'None'}")
-        print(f"Selected objects: {[obj.name for obj in selected_obj]}")
+    if prefs().debug_output:
+        print(f"\nActive object: {active_object.name}")
+        print(f"  Selected objects: {[obj.name for obj in selected_objects]}")
+        
+    obj_dimension = [obj.dimensions for obj in selected_objects] if selected_objects else []
+    obj_location = [obj.location for obj in selected_objects] if selected_objects else []
 
-    if selected_obj and active_obj in selected_obj:
-        obj_dimension = [obj.dimensions for obj in selected_obj]
-        obj_location = [obj.location for obj in selected_obj]
-    else:
-        obj_dimension = [active_obj.dimensions] if active_obj else []
-        obj_location = [active_obj.location] if active_obj else []
+    if not selected_objects and active_object:
+        obj_dimension = [active_object.dimensions]
+        obj_location = [active_object.location]
 
     return obj_dimension, obj_location
     
     
-def calculate_clipping(view_distance): 
-    obj_dimension, obj_location = get_clipping(view_distance)
+def calculate_clipping(context, view_distance): 
     if prefs().debug_profiling:
+        print('-' *40)
         start_time = profiler(time.perf_counter(), "Start calculate_clipping") 
-    # when having multiple selected obejcts and they are far appart the distance between them needs to be considered
-    # to adjust the max clipping distance
-    
-    selected_objects_proximity = (max(obj_location) - min(obj_location)).length  
-    if prefs().debug_profiling:
-        print('Objects proximity: ', selected_objects_proximity,'\n__ Max: ',  max(obj_location).length, ' Min: ', min(obj_location).length)
 
-    # TODO: "not min/max - clipping" fallback if objects without dimensions are selected  # -->  check if object has dimentions to improve calculation
+    obj_dimension, obj_location = get_clipping(context)
+    if prefs().debug_profiling:
+       start_time =  profiler(start_time, "Retrieved object dimensions and locations")
+
+    # when having multiple selected objects and they are far apart, the distance between them needs to be considered
+    # to adjust the max clipping distance
+    selected_objects_proximity = (max(obj_location) - min(obj_location)).length  
+    if prefs().debug_output:        
+        print('Objects proximity: {:.4f}'.format(selected_objects_proximity), 
+              '\n  Max: {:.4f}'.format(max(obj_location).length), 
+              ' \n  Min: {:.4f}'.format(min(obj_location).length))
+
+    if prefs().debug_profiling:
+        start_time = profiler(start_time, "Calculated selected objects proximity")
+
+    # TODO: "not min/max - clipping" fallback if objects without dimensions are selected
+    # --> check if object has dimensions to improve calculation
     if prefs().use_object_scale:
         maxClipping = ((max(max(obj_dimension)) + (view_distance * prefs().clip_end_factor)) + selected_objects_proximity)     
         minClipping = ((min_list_value(obj_dimension) * view_distance)) * prefs().clip_start_factor  
@@ -169,6 +201,8 @@ def calculate_clipping(view_distance):
         maxClipping = view_distance * prefs().clip_end_factor + selected_objects_proximity
         minClipping = view_distance * prefs().clip_start_factor  
 
+    if prefs().debug_profiling:
+        start_time = profiler(start_time, "Calculated min and max clipping distances")
 
     if not maxClipping:
         maxClipping = view_distance * prefs().clip_end_factor   
@@ -177,22 +211,20 @@ def calculate_clipping(view_distance):
     if not minClipping:
         minClipping = view_distance * prefs().clip_start_factor
         print("minClipping fallback: ", minClipping)
-           
-        
-    if  prefs().debug_profiling:
-        #print("\n\nobj_location: ", obj_location)     
-           
-        #print("\n\nmin_list_value(obj_dimension): ", min_list_value(obj_dimension)) 
-        #print("view distance: ", view_distance)   
-        #print("min-max: ", minClipping, "<<=====>>", maxClipping)
+   
+    if prefs().debug_profiling:
+        start_time = profiler(start_time, "min and max fallbakcs")
 
-        print("\n(max(max(obj_dimension): {:.4f}".format(max(max(obj_dimension))))     
+    if prefs().debug_output:
+        print("\nmax obj_dimension: {:.4f}".format(max(max(obj_dimension))))     
         print("view_distance: {:.4f}".format(view_distance))   
         print("selected_objects_proximity: {:.4f}".format(selected_objects_proximity)) 
-        print("min-max: {:.4f} <<=====>> {:.4f}".format(minClipping, maxClipping))  
-    
+        print("  min clipping: {:.4f}".format(minClipping))
+        print("  max clipping: {:.4f}".format(maxClipping))
+
     if prefs().debug_profiling:
-        start_time = profiler(start_time, "calculate_clipping") 
+        start_time = profiler(start_time, "Finished calculate_clipping")
+        print('-' *40)
 
     return minClipping, maxClipping
 
@@ -242,14 +274,13 @@ class ClippingAssistant(Operator):
         
         else:
             
-            print("Clipping Assistant: Add Auto Update")
+            print("Clipping Assistant: Enable Auto Update")
             wm.modal_handler_add(self)
             clipping_active = True
             # detect the mouse button used for selection, this causes conflicts in certain scenarios when interacting with gizmos with LMB  
             #   0 == LMB, 1 == RMB          
             active_keymap = bpy.context.preferences.keymap.active_keyconfig
             
-            #try: # some keymaps do not contain the select_mouse property. This avoids errors with those keymaps
             preferences = bpy.context.window_manager.keyconfigs[active_keymap].preferences
             if 'select_mouse' in preferences:
                 right_click_select = preferences['select_mouse']
@@ -264,8 +295,6 @@ class ClippingAssistant(Operator):
                 if right_click_select == 1:
                     self.trigger_event_types += self.right_click_event_types
             #print("trigger events: ", self.trigger_event_types)
-            """ except (KeyError, AttributeError):
-                pass """
                 
             return {'RUNNING_MODAL'}
         
@@ -281,10 +310,12 @@ class ClippingAssistant(Operator):
             if (event.type in self.trigger_event_types
                 or event.ctrl or event.shift or event.alt):  
                 selected_objects = [obj for obj in context.selected_objects if obj.type in self.ob_type]
-                if selected_objects or (bpy.context.active_object and bpy.context.active_object.type in self.ob_type):
-                    print("Clipping Assistant: Auto Update applied to batch")   
-                    print('Event type:', event.type, event.value)   
-                    apply_clipping()  
+                if selected_objects or (context.active_object and context.active_object.type in self.ob_type):
+                    if prefs().debug_output:
+                        print("Clipping Assistant: Auto Update applied to selected objects")   
+                        print('Event type:', event.type, event.value)
+                    
+                    apply_clipping(context)  
 
             return {'PASS_THROUGH'}
         else:
@@ -296,6 +327,9 @@ class ClippingAssistant(Operator):
 
 def profiler(start_time=None, message=None): 
     """Measure and print elapsed time with 4 decimal precision."""
+    if not prefs().debug_profiling:
+        return start_time  # Skip profiling if debug_profiling is disabled
+
     current_time = time.perf_counter()
     if start_time is not None:
         elapsed_time = current_time - start_time
@@ -303,6 +337,7 @@ def profiler(start_time=None, message=None):
     else:
         print(f"debug_profiling: {message}")
     return current_time
+
 
 
 def draw_button(self, context): 
@@ -345,10 +380,15 @@ def draw_button(self, context):
             except (KeyError, IndexError, AttributeError):
                 layout.row(align=True).label(text="Clip: N/A")
 
+
+
+
+
 classes = (
     ClippingAssistant,
     preferences.ClippingAssistant_Preferences,
 )
+
 
 def register():   
     [bpy.utils.register_class(c) for c in classes]  

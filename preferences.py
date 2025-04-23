@@ -85,26 +85,35 @@ class ClippingAssistant_Preferences(AddonPreferences):
         
     debug_profiling: BoolProperty(
         name="Debug: Profiling",
-        description="enable some performance output for debuggung",
-        default=True) #default=False
+        description="Enable some performance output",
+        default=False) #default=False
     
+    debug_output: BoolProperty(
+        name="Debug: Output",
+        description="Enable some debug output",
+        default=True) #default=False
+
 
     def draw(self, context):
         layout = self.layout
-        layout.use_property_split = False        
-        layout.prop(self, 'camera_clipping') 
-        layout.prop(self, 'volume_clipping') 
-        
-        layout.prop(self, 'auto_clipping') 
-        column = layout.box()
-        if self.auto_clipping:
-            column.prop(self, 'clip_start_factor', slider=True)
-            column.prop(self, 'clip_end_factor', slider=True)
-        else:
-            column.prop(self, 'clip_start_distance', slider=True)
-            column.prop(self, 'clip_end_distance', slider=True)
+        layout.use_property_split = False
 
-        layout.prop(self, 'debug_profiling') 
+        # General settings
+        layout.prop(self, 'camera_clipping')
+        layout.prop(self, 'volume_clipping')
+        layout.prop(self, 'auto_clipping')
+
+        # Clipping settings
+        column = layout.box()
+        props = ('clip_start_factor', 'clip_end_factor') if self.auto_clipping else ('clip_start_distance', 'clip_end_distance')
+        for prop in props:
+            column.prop(self, prop, slider=True)
+
+        # Debug settings
+        debug_box = layout.box()
+        debug_box.label(text="Debug Settings")
+        debug_box.prop(self, 'debug_output')
+        debug_box.prop(self, 'debug_profiling')
         if self.debug_profiling:
-            layout.prop(self, 'use_object_scale') 
+            debug_box.prop(self, 'use_object_scale')
 
