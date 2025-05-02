@@ -27,7 +27,7 @@ bl_info = {
     "name": "Clipping Assistant",
     "description": "Assistant to set Viewport and Camera Clipping Distance",
     "author": "Daniel Grauer",
-    "version": (2, 1, 1),
+    "version": (2, 2, 0),
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
@@ -158,8 +158,8 @@ def get_clipping(context):
     active_object = context.active_object
 
     if prefs().debug_output:
-        print(f"\nActive object: {active_object.name}")
-        print(f"  Selected objects: {[obj.name for obj in selected_objects]}")
+        print(f"\nActive object: {active_object.name}, type: {active_object.type}")
+        print(f"  Selected objects: {[(obj.name, obj.type) for obj in selected_objects]}")
         
     obj_dimension = [obj.dimensions for obj in selected_objects] if selected_objects else []
     obj_location = [obj.location for obj in selected_objects] if selected_objects else []
@@ -250,7 +250,10 @@ class ClippingAssistant(Operator):
     bl_description = "Start and End Clipping Distance of Camera(s)"
     bl_options = {"REGISTER", "UNDO"}   
 
-    ob_type = ['MESH', 'CURVE', 'SURFACE', 'META', 'FONT', 'HAIR', 'POINTCLOUD', 'VOLUME', 'GPENCIL', 'ARMATURE', 'LATTICE']    
+    ob_type = ['MESH', 'CURVE', 'SURFACE', 'META', 
+               'FONT', 'HAIR', 'POINTCLOUD', 'VOLUME', 
+               'GPENCIL', 'ARMATURE', 'LATTICE', 'EMPTY']
+    
     trigger_event_types = ['BUTTON4MOUSE', 'BUTTON5MOUSE', 'BUTTON6MOUSE', 'BUTTON7MOUSE',
                             'WHEELUPMOUSE', 'WHEELDOWNMOUSE', 'MIDDLEMOUSE',
                            'TRACKPADZOOM', 'TRACKPADPAN', 'MOUSEROTATE', 
@@ -262,7 +265,7 @@ class ClippingAssistant(Operator):
     right_click_event_types = ['LEFTMOUSE', 'RIGHTMOUSE']    
 
     @classmethod
-    def poll(cls, context):      
+    def poll(cls, context):  
         return context.selected_objects or context.active_object
     
     def execute(self, context):
@@ -281,17 +284,17 @@ class ClippingAssistant(Operator):
             clipping_active = True
             # detect the mouse button used for selection, this causes conflicts in certain scenarios when interacting with gizmos with LMB  
             #   0 == LMB, 1 == RMB          
-            active_keymap = bpy.context.preferences.keymap.active_keyconfig
-            
+            active_keymap = bpy.context.preferences.keymap.active_keyconfig            
             preferences = bpy.context.window_manager.keyconfigs[active_keymap].preferences
+
             if 'select_mouse' in preferences:
                 right_click_select = preferences['select_mouse']
             else:
                 right_click_select = None
+
             intersection = set(self.right_click_event_types).intersection(self.trigger_event_types)            
             if intersection: 
-                if right_click_select == 0:                    
-                    #print("intersection: ", intersection) 
+                if right_click_select == 0:                 
                     self.trigger_event_types = set(self.trigger_event_types) - set(intersection)
             else:
                 if right_click_select == 1:
