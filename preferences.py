@@ -102,6 +102,7 @@ class ClippingAssistant_Preferences(AddonPreferences):
         layout.prop(self, 'camera_clipping')
         layout.prop(self, 'volume_clipping')
         layout.prop(self, 'auto_clipping')
+        layout.prop(self, 'use_object_scale')
 
         # Clipping settings
         column = layout.box()
@@ -114,6 +115,4 @@ class ClippingAssistant_Preferences(AddonPreferences):
         debug_box.label(text="Debug Settings")
         debug_box.prop(self, 'debug_output')
         debug_box.prop(self, 'debug_profiling')
-        if self.debug_profiling:
-            debug_box.prop(self, 'use_object_scale')
 

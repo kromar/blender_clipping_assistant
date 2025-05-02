@@ -53,16 +53,16 @@ def max_list_value(input_list):
 
 
 def min_list_value(input_list):
-    ''' Return the minimum non-zero value in a list and its index. 
+    ''' Return the minimum non-zero value in a list. 
         Objects can have 0 size in certain dimensions (e.g., planes or edges), 
         so 0 values are ignored to avoid invalid minimum object sizes.
     '''
     filtered_list = [value for value in input_list[0] if value > 0]
     if filtered_list is None:
-        return None, None  # Handle case where all values are zero
+        return None  # Handle case where all values are zero
+    
     min_value = min(filtered_list)
-    min_index = input_list[0].index(min_value)
-    return min_index, min_value
+    return min_value
 
 
 def apply_clipping(context):
