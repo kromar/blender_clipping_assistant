@@ -58,8 +58,9 @@ def min_list_value(input_list):
         so 0 values are ignored to avoid invalid minimum object sizes.
     '''
     filtered_list = [value for value in input_list[0] if value > 0]
-    if filtered_list is None:
-        return None  # Handle case where all values are zero
+    if not filtered_list:
+        # This block runs if filtered_list is empty []
+        return 1 # Or handle the case appropriately
     
     min_value = min(filtered_list)
     return min_value
