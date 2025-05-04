@@ -28,25 +28,6 @@ class ClippingAssistant_Preferences(AddonPreferences):
         description="Adjust clipping distance automaticly on selected context",
         default=True) #dfault: True
     
-    clip_start_factor: FloatProperty(
-        name="Clip Start Multiplier",
-        description="Value to calculate Clip Start, the higher the value the smaller the Clip Start Distance",
-        default=0.01,
-        min = 0.001,
-        soft_min = 1,
-        soft_max=10,
-        step=1,
-        subtype='FACTOR') 
-
-    clip_end_factor: FloatProperty(
-        name="Clip End Multiplier",
-        description="Value to calculate Clip End, the higher the value the bigger the Clip End Distance",
-        default=10,
-        min = 0.001,
-        soft_min = 1,
-        soft_max=100,
-        step=1,
-        subtype='FACTOR')
 
     clip_start_distance: FloatProperty(
         name="Clip Start Distance",
@@ -81,7 +62,7 @@ class ClippingAssistant_Preferences(AddonPreferences):
     debug_output: BoolProperty(
         name="Debug: Output",
         description="Enable some debug output",
-        default=False) #default=False
+        default=True) #default=False
         
     debug_profiling: BoolProperty(
         name="Debug: Profiling",
@@ -91,7 +72,7 @@ class ClippingAssistant_Preferences(AddonPreferences):
     show_clipping_distance: BoolProperty(
         name="Show Clipping Distance",
         description="Show the current clipping distance in the header",
-        default=True) #default=True
+        default=True) #default=False
     
 
     def draw(self, context):
@@ -104,10 +85,10 @@ class ClippingAssistant_Preferences(AddonPreferences):
         layout.prop(self, 'auto_clipping')
 
         # Clipping settings
-        column = layout.box()
-        props = ('clip_start_factor', 'clip_end_factor') if self.auto_clipping else ('clip_start_distance', 'clip_end_distance')
-        for prop in props:
-            column.prop(self, prop, slider=True)
+        if not self.auto_clipping:  
+            column = layout.box()      
+            column.prop(self, 'clip_start_distance', slider=True)
+            column.prop(self, 'clip_end_distance', slider=True)
 
         # Debug settings
         debug_box = layout.box()
