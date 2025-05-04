@@ -28,11 +28,6 @@ class ClippingAssistant_Preferences(AddonPreferences):
         description="Adjust clipping distance automaticly on selected context",
         default=True) #dfault: True
     
-    use_object_scale: BoolProperty(
-        name="Use Object Scale",
-        description="Use the object scale in the clipping distance calculation",
-        default=False) #dfault: False
-
     clip_start_factor: FloatProperty(
         name="Clip Start Multiplier",
         description="Value to calculate Clip Start, the higher the value the smaller the Clip Start Distance",
@@ -86,7 +81,7 @@ class ClippingAssistant_Preferences(AddonPreferences):
     debug_output: BoolProperty(
         name="Debug: Output",
         description="Enable some debug output",
-        default=False) #default=False
+        default=True) #default=False
         
     debug_profiling: BoolProperty(
         name="Debug: Profiling",
@@ -102,7 +97,6 @@ class ClippingAssistant_Preferences(AddonPreferences):
         layout.prop(self, 'camera_clipping')
         layout.prop(self, 'volume_clipping')
         layout.prop(self, 'auto_clipping')
-        layout.prop(self, 'use_object_scale')
 
         # Clipping settings
         column = layout.box()
