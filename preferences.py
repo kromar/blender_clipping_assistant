@@ -17,7 +17,7 @@
 # ##### END GPL LICENSE BLOCK #####
 
 from bpy.types import AddonPreferences
-from bpy.props import BoolProperty, IntProperty, FloatProperty, EnumProperty, StringProperty, PointerProperty, CollectionProperty
+from bpy.props import BoolProperty, FloatProperty
 
 
 class ClippingAssistant_Preferences(AddonPreferences):
@@ -76,7 +76,7 @@ class ClippingAssistant_Preferences(AddonPreferences):
     volume_clipping: BoolProperty(
         name="Apply Clipping To Volumetrics",
         description="Adapt Clipping distances of volumetric effects",
-        default=True)
+        default=False)
     
     debug_output: BoolProperty(
         name="Debug: Output",
@@ -91,7 +91,7 @@ class ClippingAssistant_Preferences(AddonPreferences):
     show_clipping_distance: BoolProperty(
         name="Show Clipping Distance",
         description="Show the current clipping distance in the header",
-        default=True
+        default=False
     )
     
 

@@ -37,12 +37,18 @@ bl_info = {
 
 clipping_active = False
 start_time = None
+_cached_prefs = None # Cache for addon preferences
 
 def prefs():
-    ''' load addon preferences to reference in code'''
-    user_preferences = bpy.context.preferences
-    return user_preferences.addons[__package__].preferences 
-
+    ''' Get addon preferences, using a cache for efficiency. '''
+    global _cached_prefs
+    if _cached_prefs is None:
+        try:
+            _cached_prefs = bpy.context.preferences.addons[__package__].preferences
+        except (KeyError, AttributeError):
+             # Handle cases where context or preferences might not be available yet or addon not registered
+             return None # Or raise an error, or return a default object
+    return _cached_prefs
 
 def max_list_value(input_list):
     ''' Find the maximum value in a list and return the index and the value '''
@@ -75,7 +81,9 @@ def get_min_dimension(dimension_list):
 
 
 def apply_clipping(context):
-    if prefs().debug_profiling:
+    prefs_ = prefs() # Get prefs once for this function execution
+    if prefs_ is None: return # Exit if prefs aren't available
+    if prefs_.debug_profiling:
         total_time = profiler(time.perf_counter(), "Start Total Profiling")
         calc_time = profiler(time.perf_counter(), "Start Profiling")
         print('-' * 40)
@@ -89,26 +97,26 @@ def apply_clipping(context):
         return
 
 
-    if prefs().debug_profiling:
+    if prefs_.debug_profiling:
         calc_time = profiler(calc_time, "Start Clipping Calculation")
         
     space = area.spaces.active
 
-    if prefs().auto_clipping:
+    if prefs_.auto_clipping:
         view_3d = space.region_3d
         view_distance = view_3d.view_distance
-        if prefs().debug_profiling:
+        if prefs_.debug_profiling:
             calc_time = profiler(calc_time, "view_distance")
 
         minClipping, maxClipping = calculate_clipping(context, view_distance)
-        if prefs().debug_profiling:
+        if prefs_.debug_profiling:
             calc_time = profiler(calc_time, "auto_clipping")
     else:
-        minClipping, maxClipping = prefs().clip_start_distance, prefs().clip_end_distance   
-        if prefs().debug_profiling:
+        minClipping, maxClipping = prefs_.clip_start_distance, prefs_.clip_end_distance
+        if prefs_.debug_profiling:
             calc_time = profiler(calc_time, "no auto_clipping")
 
-    if prefs().debug_profiling:
+    if prefs_.debug_profiling:
         calc_time = profiler(calc_time, "End Clipping Calculation")
 
 
@@ -116,31 +124,31 @@ def apply_clipping(context):
     space.clip_start = minClipping
     space.clip_end = maxClipping
     
-    if prefs().debug_output:
+    if prefs_.debug_output:
        print('-' * 40)
        print(f"Set Viewport Clipping: {minClipping:.4f} <-> {maxClipping:.4f}")
        print('=' * 40)
 
-    if prefs().debug_profiling:
+    if prefs_.debug_profiling:
         calc_time = profiler(calc_time, "Viewport Clipping Applied")
 
     # Apply volumetric clipping
-    if prefs().volume_clipping:
+    if prefs_.volume_clipping:
         scene = context.scene
         scene.eevee.volumetric_start = minClipping
         scene.eevee.volumetric_end = maxClipping
 
-    if prefs().debug_profiling:
+    if prefs_.debug_profiling:
         calc_time = profiler(calc_time, "Volumetric Clipping Applied")
 
     # Apply camera clipping
-    if space.camera and prefs().camera_clipping:
+    if space.camera and prefs_.camera_clipping:
         camera = bpy.data.cameras.get(space.camera.name)
         if camera:
             camera.clip_start = minClipping
             camera.clip_end = maxClipping
 
-    if prefs().debug_profiling:
+    if prefs_.debug_profiling:
         calc_time = profiler(calc_time, "Camera Clipping Applied")
 
     if prefs().debug_profiling:
@@ -449,15 +457,16 @@ classes = (
 
 
 def register():   
+    global _cached_prefs
+    _cached_prefs = None # Reset cache on registration
     [bpy.utils.register_class(c) for c in classes]  
     bpy.types.TOPBAR_HT_upper_bar.prepend(draw_button)
-
+    # Note: The startup_check timer logic from the previous request should be added here if used.
 
 def unregister():
     bpy.types.TOPBAR_HT_upper_bar.remove(draw_button)
     [bpy.utils.unregister_class(c) for c in classes]
-    # Unsubscribe and remove handle
-    #unsubscribe_to_obj(subscription_owner)
+
 
 if __name__ == "__main__":
     register()
