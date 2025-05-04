@@ -82,7 +82,8 @@ def get_min_dimension(dimension_list):
 
 def apply_clipping(context):
     prefs_ = prefs() # Get prefs once for this function execution
-    if prefs_ is None: return # Exit if prefs aren't available
+    if prefs_ is None: 
+        return # Exit if prefs aren't available
     if prefs_.debug_profiling:
         total_time = profiler(time.perf_counter(), "Start Total Profiling")
         calc_time = profiler(time.perf_counter(), "Start Profiling")
@@ -156,6 +157,7 @@ def apply_clipping(context):
         total_time = profiler(total_time, "Total clipping time")
         print("=" * 40, end='\n\n')
         
+# Removed request_topbar_redraw timer function as it was unreliable
 
 def get_outliner_objects():
     '''Retrieve the active object from the Outliner area.'''
@@ -375,6 +377,7 @@ class ClippingAssistant(Operator):
         global clipping_active
 
         if clipping_active:
+            redraw_needed = False # Flag to track if we need to redraw
             if (event.type in self.trigger_event_types
                 or event.ctrl or event.shift or event.alt):  
                 selected_objects = [obj for obj in context.selected_objects if obj.type in self.ob_type]
@@ -382,8 +385,27 @@ class ClippingAssistant(Operator):
                     if prefs().debug_output:
                         print("Clipping Assistant: Auto Update applied to selected objects")   
                         print('Event type:', event.type, event.value)
-                    
+
                     apply_clipping(context)  
+                    redraw_needed = True # Mark that we need to redraw the Top Bar header
+
+            # Attempt to force redraw if clipping was applied
+            if redraw_needed:
+                # Standard redraw methods (like region.tag_redraw()) proved insufficient
+                # to reliably update the Top Bar during continuous events (scroll, pan).
+                # print(f"DEBUG: Redraw needed for event {event.type}. Applying frame_set hack.") # Keep for debugging if needed
+                try:
+                    # 1. Explicitly tag the header region (best practice, even if insufficient alone)
+                    for area in context.screen.areas:
+                        if area.type == 'TOPBAR':
+                            for region in area.regions:
+                                if region.type == 'HEADER': region.tag_redraw(); break
+                            break
+                    # 2. Apply the frame_set hack to force broader UI update
+                    original_frame = context.scene.frame_current
+                    context.scene.frame_set(original_frame + 0) # Force update by setting frame
+                except Exception as e:
+                    print(f"WARNING: Clipping Assistant frame_set redraw hack failed - {e}") # Use WARNING for actual errors
 
             return {'PASS_THROUGH'}
         else:
