@@ -408,29 +408,30 @@ def draw_button(self, context):
         
         # Display the clip start and end values
         if clipping_active:
-            try:
-                scene = context.scene
-                unit_settings = scene.unit_settings
-                scale_length = scene.unit_settings.scale_length
+            if prefs().show_clipping_distance:
+                try:                                
+                    scene = context.scene
+                    unit_settings = scene.unit_settings
+                    scale_length = scene.unit_settings.scale_length
 
-                if unit_settings.system == 'METRIC':
-                    scale_length *= 100.0
-                elif unit_settings.system == 'IMPERIAL':
-                    scale_length *= 3.28084
+                    if unit_settings.system == 'METRIC':
+                        scale_length *= 100.0
+                    elif unit_settings.system == 'IMPERIAL':
+                        scale_length *= 3.28084
 
-                clip_start_value = None
-                clip_end_value = None
-                for area in context.screen.areas:
-                    if area.type == 'VIEW_3D':
-                        space = area.spaces.active
-                        clip_start_value = space.clip_start * scale_length
-                        clip_end_value = space.clip_end * scale_length
-                
-                row = layout.row(align=True)
-                row.label(text=f"[{clip_start_value:.2f} | {clip_end_value:.2f}]")
+                    clip_start_value = None
+                    clip_end_value = None
+                    for area in context.screen.areas:
+                        if area.type == 'VIEW_3D':
+                            space = area.spaces.active
+                            clip_start_value = space.clip_start * scale_length
+                            clip_end_value = space.clip_end * scale_length
+                    
+                    row = layout.row(align=True)
+                    row.label(text=f"[{clip_start_value:.2f} | {clip_end_value:.2f}]")
 
-            except (KeyError, IndexError, AttributeError):
-                layout.row(align=True).label(text="Clip: N/A")
+                except (KeyError, IndexError, AttributeError):
+                    layout.row(align=True).label(text="Clip: N/A")
                 
         row.operator(
             operator="scene.clipping_assistant", 

@@ -81,12 +81,18 @@ class ClippingAssistant_Preferences(AddonPreferences):
     debug_output: BoolProperty(
         name="Debug: Output",
         description="Enable some debug output",
-        default=True) #default=False
+        default=False) #default=False
         
     debug_profiling: BoolProperty(
         name="Debug: Profiling",
         description="Enable some performance output",
         default=False) #default=False
+    
+    show_clipping_distance: BoolProperty(
+        name="Show Clipping Distance",
+        description="Show the current clipping distance in the header",
+        default=True
+    )
     
 
     def draw(self, context):
@@ -107,6 +113,7 @@ class ClippingAssistant_Preferences(AddonPreferences):
         # Debug settings
         debug_box = layout.box()
         debug_box.label(text="Debug Settings")
+        debug_box.prop(self, 'show_clipping_distance')
         debug_box.prop(self, 'debug_output')
         debug_box.prop(self, 'debug_profiling')
 
