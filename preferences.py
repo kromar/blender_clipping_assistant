@@ -62,7 +62,7 @@ class ClippingAssistant_Preferences(AddonPreferences):
     debug_output: BoolProperty(
         name="Debug: Output",
         description="Enable some debug output",
-        default=True) #default=False
+        default=False) #default=False
         
     debug_profiling: BoolProperty(
         name="Debug: Profiling",

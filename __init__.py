@@ -119,7 +119,6 @@ def apply_clipping(context):
     if area is None:
         return
 
-
     if prefs_.debug_profiling:
         calc_time = profiler(calc_time, "Start Clipping Calculation")
         
@@ -132,11 +131,16 @@ def apply_clipping(context):
         target_objects_raw = selected_objects
         if not target_objects_raw and active_object:
             target_objects_raw = [active_object]
+        
         # Filter target objects by type (using the list from the Operator class)
         target_objects = [obj for obj in target_objects_raw if obj.type in ClippingAssistant.ob_type]
 
         # Get dimensions and locations (using the original function, which implicitly uses context)
-        obj_dimensions, obj_locations = get_object_dimensions_and_locations(context)
+        obj_dimensions, obj_locations = get_object_dimensions_and_locations(context, target_objects)
+        
+        if prefs_.debug_output:
+            print('\nObject location: ', obj_locations)
+            print('Object dimensions: ', obj_dimensions)
 
         view_3d = space.region_3d
         view_distance = view_3d.view_distance
@@ -144,7 +148,7 @@ def apply_clipping(context):
             calc_time = profiler(calc_time, "view_distance")
 
         # Pass target_objects, obj_dimensions, obj_locations to calculate_clipping
-        minClipping, maxClipping = calculate_clipping(context, view_distance, target_objects, obj_dimensions, obj_locations)
+        minClipping, maxClipping = calculate_clipping(context, view_distance, obj_dimensions, obj_locations)
         if prefs_.debug_profiling:
             calc_time = profiler(calc_time, "auto_clipping")
     else:
@@ -207,13 +211,13 @@ def get_outliner_objects():
     return None
 
 
-def get_object_dimensions_and_locations(context):  
+def get_object_dimensions_and_locations(context, target_objects):  
     """Gets the dimensions and locations of selected objects, or the active object if none are selected."""
     selected_objects = context.selected_objects
     active_object = context.active_object
 
     # Determine the target objects
-    target_objects = selected_objects
+    #target_objects = selected_objects
     if not target_objects and active_object:
         target_objects = [active_object] # Use a list containing the active object
 
@@ -222,46 +226,38 @@ def get_object_dimensions_and_locations(context):
         print(f"  Selected objects: {[(obj.name, obj.type) for obj in selected_objects]}")
         print(f"  Target objects for data: {[(obj.name, obj.type) for obj in target_objects]}")
         
-    obj_dimensions = [obj.dimensions for obj in target_objects]
-    obj_locations = [obj.location for obj in target_objects]
+    if not target_objects:
+        return None, None # Return None if no valid objects
+
+    obj_locations = [obj.location for obj in target_objects] # Get locations regardless
+
+    # Check if all target objects have zero dimensions
+    all_zero_dimensions = True
+    for obj in target_objects:
+        if any(d != 0.0 for d in obj.dimensions):
+            all_zero_dimensions = False
+            break
     
+    obj_dimensions = None if all_zero_dimensions else [obj.dimensions for obj in target_objects]
+
     return obj_dimensions, obj_locations
 
     
-def calculate_clipping(context, view_distance, target_objects, obj_dimensions, obj_locations):
+def calculate_clipping(context, view_distance, obj_dimensions, obj_locations):
     prefs_ = prefs() # Get prefs once
     if prefs_.debug_profiling:
         print('-' *40)
         start_time = profiler(time.perf_counter(), "Start calculate_clipping") 
 
-    # Dimensions and locations are now passed in
-    obj_dimensions, obj_locations = get_object_dimensions_and_locations(context)
     if prefs_.debug_profiling:
        start_time =  profiler(start_time, "Retrieved object dimensions and locations")
-
-
-    """ # --- Early exit or default calculation if no objects ---
-    if not obj_dimensions: # If no dimensions, locations will also be empty
-        if prefs_.debug_output:
-            print("No target objects found. Using default clipping based on view distance.")
-        # Calculate clipping based only on view distance and factors
-        minClipping = view_distance * prefs_.clip_start_factor
-        maxClipping = view_distance * prefs_.clip_end_factor
-        # Ensure minimum clipping values to prevent issues
-        minClipping = max(minClipping, prefs_.clip_start_factor) # Avoid zero or negative clip start
-        maxClipping = max(maxClipping, minClipping + prefs_.clip_end_factor) # Ensure clip end is after clip start
-
-        if prefs_.debug_profiling:
-            profiler(start_time, "Finished calculate_clipping (no objects)")
-            print('-' * 40)
-        return minClipping, maxClipping
-    # --- End Early Exit --- """
-
-
-    # --- Calculate Proximity ---    
-    print('\nObject location: ', len(obj_locations))
+ 
+    # --- Calculate Proximity ---   
     min_loc_vec = None
-    max_loc_vec = None
+    max_loc_vec = None 
+    if prefs_.debug_output:
+        print('\nObject count: ', len(obj_locations))
+
     if len(obj_locations) > 1:
         # Store min/max vectors to avoid recalculating
         min_loc_vec = min(obj_locations)
@@ -287,27 +283,43 @@ def calculate_clipping(context, view_distance, target_objects, obj_dimensions, o
         start_time = profiler(start_time, "Calculated selection spread")
     # --- End Proximity ---
 
+    min_view_range = abs(view_distance / (1 + view_distance) / 10)
+    max_view_range = abs((1 + view_distance) * 10)
+
+    # --- Early exit or default calculation if no objects ---
+    if obj_dimensions == None: # If no dimensions
+        if prefs_.debug_output:
+            print("No target objects found. Using default clipping based on view distance.")
+        # Calculate clipping based only on view distance and factors
+        minClipping = min_view_range 
+        maxClipping = max_view_range
+
+        if prefs_.debug_profiling:
+            profiler(start_time, "Finished calculate_clipping (no objects)")
+            print('-' * 40)
+        return minClipping, maxClipping
+    # --- End Early Exit ---
 
     # --- Calculate Clipping ---
     # Find min non-zero dimension value across all objects using the corrected helper
     min_dim_value = get_min_dimension(obj_dimensions)
     max_dim_value = get_max_dimension(obj_dimensions)
 
-    minClipping = (min_dim_value / 2) * view_distance
-
-    maxClipping = (max_dim_value + selection_spread) * 2 * (1 + view_distance)
+    minClipping = (min_dim_value / 2) * min_view_range
+    maxClipping = (max_dim_value + selection_spread) * 2 * max_view_range
   
     if prefs_.debug_output:
         print(f"\nMin Clipping Calculation:")
-        print(f"  Min Dimension: {min_dim_value:.4f}")
         print(f"  View Distance: {view_distance:.4f}")
-        #print(f"  Start Factor:  {prefs_.clip_start_factor:.4f}")
+        print(f"  Min View Range: {min_view_range:.4f}")
+        print(f"  Min Dimension: {min_dim_value / 2:.4f}")
         print(f"    -> Min Clipping:      {minClipping:.4f}")
+
         print(f"\nMax Clipping Calculation:")
-        print(f"  Max Dimension:    {max_dim_value:.4f}") # Use new variable name
         print(f"  View Distance: {view_distance:.4f}")
-        #print(f"  End Factor:    {prefs_.clip_end_factor:.4f}")
+        print(f"  Max View Range: {max_view_range:.4f}")
         print(f"  Spread:        {selection_spread:.4f}")
+        print(f"  Max Dimension:    {max_dim_value:.4f}") # Use new variable name
         print(f"    -> Max Clipping:      {maxClipping:.4f}")
 
     if prefs_.debug_profiling:
