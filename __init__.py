@@ -32,7 +32,7 @@ bl_info = {
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
-    "wiki_url": "https://github.com/kromar/blender_clipping_assistant",
+    "wiki_url": "https://superhivemarket.com/products/clipping-assistant/docs",
     "tracker_url": "https://github.com/kromar/blender_clipping_assistant/issues/new",
 }
 
