@@ -28,7 +28,7 @@ bl_info = {
     "name": "Clipping Assistant",
     "description": "Assistant to set Viewport and Camera Clipping Distance",
     "author": "Daniel Grauer",
-    "version": (2, 2, 0),
+    "version": (2, 2, 1),
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
@@ -387,19 +387,18 @@ class ClippingAssistant(Operator):
             # detect the mouse button used for selection, this causes conflicts in certain scenarios when interacting with gizmos with LMB  
             #   0 == LMB, 1 == RMB          
             active_keymap = bpy.context.preferences.keymap.active_keyconfig            
-            preferences = bpy.context.window_manager.keyconfigs[active_keymap].preferences
+            keyconfig = bpy.context.window_manager.keyconfigs[active_keymap]
+            preferences = keyconfig.preferences
 
-            if 'select_mouse' in preferences:
-                right_click_select = preferences['select_mouse']
-            else:
-                right_click_select = None
+            # getattr(object, name, default_value)
+            right_click_select = getattr(preferences, "select_mouse", None)
 
             intersection = set(self.right_click_event_types).intersection(self.trigger_event_types)            
             if intersection: 
-                if right_click_select == 0:                 
+                if right_click_select == 0: # 0 is usually Left Click                
                     self.trigger_event_types = set(self.trigger_event_types) - set(intersection)
             else:
-                if right_click_select == 1:
+                if right_click_select == 1: # 1 is usually Right Click
                     self.trigger_event_types += self.right_click_event_types
             #print("trigger events: ", self.trigger_event_types)
                 

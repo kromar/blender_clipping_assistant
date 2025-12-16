@@ -2,7 +2,7 @@
 schema_version = "1.0.0"
 id = "blender_clipping_assistant"
 name = "Clipping Assistant"
-version = "2.2.0"
+version = "2.2.1"
 tagline = "Assistant to set Viewport and Camera Clipping Distance"
 maintainer = "Daniel Grauer (kromar)"
 type = "add-on"
