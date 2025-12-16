@@ -72,7 +72,7 @@ class ClippingAssistant_Preferences(AddonPreferences):
     show_clipping_distance: BoolProperty(
         name="Show Clipping Distance",
         description="Show the current clipping distance in the header",
-        default=True) #default=False
+        default=False) #default=False
     
 
     def draw(self, context):

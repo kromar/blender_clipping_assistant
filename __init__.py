@@ -28,7 +28,7 @@ bl_info = {
     "name": "Clipping Assistant",
     "description": "Assistant to set Viewport and Camera Clipping Distance",
     "author": "Daniel Grauer",
-    "version": (2, 2, 1),
+    "version": (2, 2, 2),
     "blender": (2, 83, 0),
     "location": "TopBar",
     "category": "System",
@@ -485,16 +485,15 @@ def draw_button(self, context):
                     elif unit_settings.system == 'IMPERIAL':
                         scale_length *= 3.28084
 
-                    clip_start_value = None
-                    clip_end_value = None
                     for area in context.screen.areas:
                         if area.type == 'VIEW_3D':
                             space = area.spaces.active
                             clip_start_value = space.clip_start * scale_length
                             clip_end_value = space.clip_end * scale_length
                     
-                    row = layout.row(align=True)
-                    row.label(text=f"[{clip_start_value:.2f} | {clip_end_value:.2f}]")
+                    if clip_start_value and clip_end_value:
+                        row = layout.row(align=True)
+                        row.label(text=f"[{clip_start_value:.2f} | {clip_end_value:.2f}]")
 
                 except (KeyError, IndexError, AttributeError):
                     layout.row(align=True).label(text="Clip: N/A")
